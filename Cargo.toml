@@ -1,0 +1,66 @@
+[package]
+name = "disco"
+version = "0.1.0"
+edition = "2026"
+authors = ["Dujddx"]
+description = "A local multi-disk storage scheduling CLI tool"
+license = "MIT"
+
+[dependencies]
+# CLI parsing
+clap = { version = "4", features = ["derive"] }
+
+# SQLite database
+rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite_migration = "1"
+
+# TUI components
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Progress bar
+indicatif = "0.17"
+
+# Interactive shell
+rustyline = "15"
+
+# Colored terminal output
+colored = "2"
+
+# File traversal
+walkdir = "2"
+
+# File hashing
+blake3 = "1"
+
+# Fuzzy search
+nucleo-matcher = "0.3"
+
+# System info
+sysinfo = "0.33"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Data directories
+directories = "6"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Path handling
+path-absolutize = "3"
+
+[dev-dependencies]
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
