@@ -258,10 +258,187 @@ impl<'a> EntryRepo<'a> {
         }
     }
 
+    /// Search entries by path prefix (find all files under a folder)
+    pub fn search_by_path_prefix(&self, path_prefix: &str, limit: usize) -> Result<Vec<IndexEntry>> {
+        let mut entries = Vec::new();
+        // Match paths that start with the prefix (folder path)
+        let prefix_pattern = if path_prefix.ends_with('/') {
+            format!("{}%", path_prefix)
+        } else {
+            format!("{}/%", path_prefix)
+        };
+
+        let mut stmt = self.db.conn().prepare(
+            "SELECT entry_id, disk_id, disk_name, relative_path, file_name, size, hash, mtime, entry_type, solid_flag, last_seen_mount_point, indexed_at, status
+             FROM entries
+             WHERE relative_path LIKE ?1 OR relative_path = ?2
+             ORDER BY relative_path
+             LIMIT ?3",
+        )?;
+
+        let rows = stmt.query_map(params![prefix_pattern, path_prefix, limit as i64], |row| {
+            Ok(IndexEntry {
+                entry_id: row.get::<_, i64>(0)?,
+                disk_id: DiskId::new(row.get::<_, String>(1)?),
+                disk_name: row.get::<_, String>(2)?,
+                relative_path: row.get::<_, String>(3)?,
+                file_name: row.get::<_, String>(4)?,
+                size: row.get::<_, u64>(5)?,
+                hash: row.get::<_, Option<String>>(6)?,
+                mtime: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                entry_type: row.get::<_, String>(8)?.parse().unwrap_or(EntryType::File),
+                solid_flag: row.get::<_, i64>(9)? != 0,
+                last_seen_mount_point: row.get::<_, String>(10)?,
+                indexed_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(11)?)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                status: row.get::<_, String>(12)?.parse().unwrap_or(EntryStatus::Normal),
+            })
+        })?;
+
+        for row in rows {
+            entries.push(row?);
+        }
+
+        Ok(entries)
+    }
+
+    /// Find all directories matching a keyword (for folder search)
+    pub fn search_directories(&self, keyword: &str, limit: usize) -> Result<Vec<IndexEntry>> {
+        let mut entries = Vec::new();
+
+        // Find directories where the directory name matches
+        let mut stmt = self.db.conn().prepare(
+            "SELECT DISTINCT
+                -1 as entry_id,
+                disk_id,
+                disk_name,
+                relative_path,
+                substr(relative_path, instr(relative_path, '/') + 1) as folder_name,
+                0 as size,
+                NULL as hash,
+                CURRENT_TIMESTAMP as mtime,
+                'dir' as entry_type,
+                0 as solid_flag,
+                last_seen_mount_point,
+                CURRENT_TIMESTAMP as indexed_at,
+                'normal' as status
+             FROM entries
+             WHERE entry_type = 'dir' AND lower(relative_path) LIKE lower(?1)
+             GROUP BY disk_id, relative_path
+             ORDER BY relative_path
+             LIMIT ?2",
+        )?;
+
+        let keyword_pattern = format!("%{}%", keyword);
+        let rows = stmt.query_map(params![keyword_pattern, limit as i64], |row| {
+            Ok(IndexEntry {
+                entry_id: row.get::<_, i64>(0)?,
+                disk_id: DiskId::new(row.get::<_, String>(1)?),
+                disk_name: row.get::<_, String>(2)?,
+                relative_path: row.get::<_, String>(3)?,
+                file_name: row.get::<_, String>(4)?,
+                size: row.get::<_, u64>(5)?,
+                hash: row.get::<_, Option<String>>(6)?,
+                mtime: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                entry_type: row.get::<_, String>(8)?.parse().unwrap_or(EntryType::Dir),
+                solid_flag: row.get::<_, i64>(9)? != 0,
+                last_seen_mount_point: row.get::<_, String>(10)?,
+                indexed_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(11)?)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                status: row.get::<_, String>(12)?.parse().unwrap_or(EntryStatus::Normal),
+            })
+        })?;
+
+        for row in rows {
+            entries.push(row?);
+        }
+
+        Ok(entries)
+    }
+
+    /// Get unique folder names across all disks (for folder search)
+    pub fn search_folder_names(&self, keyword: &str, limit: usize) -> Result<Vec<FolderMatch>> {
+        let mut folders: Vec<FolderMatch> = Vec::new();
+
+        // Extract unique folder names from all paths
+        let mut stmt = self.db.conn().prepare(
+            "SELECT
+                CASE
+                    WHEN instr(relative_path, '/') > 0
+                    THEN substr(relative_path, 1, instr(relative_path, '/') - 1)
+                    ELSE relative_path
+                END as top_folder,
+                GROUP_CONCAT(DISTINCT disk_id) as disk_ids,
+                GROUP_CONCAT(DISTINCT disk_name) as disk_names,
+                COUNT(*) as file_count,
+                SUM(size) as total_size
+             FROM entries
+             WHERE entry_type = 'file' AND lower(relative_path) LIKE lower(?1)
+             GROUP BY top_folder
+             ORDER BY total_size DESC
+             LIMIT ?2",
+        )?;
+
+        let keyword_pattern = format!("%{}%", keyword);
+        let rows = stmt.query_map(params![keyword_pattern, limit as i64], |row| {
+            Ok(FolderMatch {
+                folder_name: row.get::<_, String>(0)?,
+                disk_ids: row.get::<_, String>(1)?,
+                disk_names: row.get::<_, String>(2)?,
+                file_count: row.get::<_, i64>(3)? as usize,
+                total_size: row.get::<_, u64>(4)?,
+            })
+        })?;
+
+        for row in rows {
+            folders.push(row?);
+        }
+
+        Ok(folders)
+    }
+
     /// Delete entry by ID
     pub fn delete_entry(&self, entry_id: i64) -> Result<()> {
         self.db.conn().execute("DELETE FROM entries WHERE entry_id = ?1", [entry_id])?;
         Ok(())
+    }
+}
+
+/// Represents a folder match across multiple disks
+#[derive(Debug, Clone)]
+pub struct FolderMatch {
+    /// Folder name
+    pub folder_name: String,
+    /// Comma-separated disk IDs where this folder exists
+    pub disk_ids: String,
+    /// Comma-separated disk names
+    pub disk_names: String,
+    /// Number of files in this folder
+    pub file_count: usize,
+    /// Total size of all files
+    pub total_size: u64,
+}
+
+impl FolderMatch {
+    /// Get list of disk IDs
+    pub fn disk_id_list(&self) -> Vec<String> {
+        self.disk_ids.split(',').map(|s| s.to_string()).collect()
+    }
+
+    /// Get list of disk names
+    pub fn disk_name_list(&self) -> Vec<String> {
+        self.disk_names.split(',').map(|s| s.to_string()).collect()
+    }
+
+    /// Check if folder spans multiple disks
+    pub fn is_split(&self) -> bool {
+        self.disk_ids.contains(',')
     }
 }
 

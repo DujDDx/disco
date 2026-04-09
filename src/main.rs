@@ -59,6 +59,9 @@ enum Commands {
 
     /// Open the terminal visualization interface
     Visualize(VisualizeCmd),
+
+    /// Open visual menu mode with arrow key navigation
+    Menu,
 }
 
 #[derive(Subcommand, Debug)]
@@ -112,6 +115,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Solid(SolidCommands::Set(cmd)) => disco::cli::commands::solid::handle_set(cmd),
         Commands::Solid(SolidCommands::Unset(cmd)) => disco::cli::commands::solid::handle_unset(cmd),
         Commands::Visualize(cmd) => disco::cli::commands::visualize::handle_visualize(cmd),
+        Commands::Menu => disco::cli::interactive::run_menu_direct(),
     }?;
 
     Ok(())

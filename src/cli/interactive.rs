@@ -47,7 +47,7 @@ pub fn run_interactive() -> Result<()> {
 
     // REPL loop
     loop {
-        let readline = editor.readline(&format!("{}", "disco>".green().bold()));
+        let readline = editor.readline(&format!("{}", "disco> ".green().bold()));
         match readline {
             Ok(line) => {
                 let line = line.trim();
@@ -86,6 +86,13 @@ pub fn run_interactive() -> Result<()> {
     let _ = editor.save_history(&history_path);
     print_success("Goodbye!");
 
+    Ok(())
+}
+
+/// Run menu mode directly (for `disco menu` command)
+pub fn run_menu_direct() -> Result<()> {
+    let ctx = AppContext::init()?;
+    run_menu_mode(&ctx)?;
     Ok(())
 }
 

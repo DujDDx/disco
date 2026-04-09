@@ -157,7 +157,7 @@ fn run_tui(
         Terminal,
     };
     use std::io;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     // Setup terminal
     enable_raw_mode()?;
@@ -266,20 +266,24 @@ fn run_tui(
                         .enumerate()
                         .map(|(i, (disk, mounted, size, files, mount))| {
                             let status_icon = if *mounted { "●" } else { "○" };
-                            let status_color = if *mounted { Color::Green } else { Color::Red };
+                            let status_color = if *mounted { Color::Green } else { Color::Yellow };
                             let name_style = if i == selected_disk {
                                 Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
                             } else {
                                 Style::default().fg(Color::White)
                             };
 
-                            let mount_info = mount.as_deref().map(|m| format!(" ({})", m)).unwrap_or_default();
+                            let mount_info = if *mounted {
+                                mount.as_deref().map(|m| format!(" ({})", m)).unwrap_or_default()
+                            } else {
+                                " (离线-索引可用)".to_string()
+                            };
 
                             ListItem::new(Line::from(vec![
                                 Span::styled(format!("{} ", status_icon), Style::default().fg(status_color)),
                                 Span::styled(&disk.name, name_style),
                                 Span::styled(format!(" [{}]", disk.disk_id), Style::default().fg(Color::DarkGray)),
-                                Span::styled(mount_info, Style::default().fg(Color::Green)),
+                                Span::styled(mount_info, if *mounted { Style::default().fg(Color::Green) } else { Style::default().fg(Color::Yellow) }),
                                 Span::raw("  "),
                                 Span::styled(format!("{} 文件", files), Style::default().fg(Color::Cyan)),
                                 Span::raw("  "),
@@ -290,7 +294,7 @@ fn run_tui(
 
                     let list = List::new(items)
                         .block(Block::default()
-                            .title(" 硬盘 Disks (Enter: 文件夹 | U: 占用视图) ")
+                            .title(" 硬盘 Disks (基于本地索引 | Enter: 文件夹 | U: 占用视图) ")
                             .borders(Borders::ALL))
                         .highlight_style(Style::default().bg(Color::DarkGray))
                         .highlight_symbol("▶ ");
@@ -418,27 +422,25 @@ fn run_tui(
                                 }
                             }
                             KeyCode::Enter => {
-                                if let Some((disk, mounted, _, _, _)) = disk_info.get(selected_disk) {
-                                    if *mounted {
-                                        current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
-                                        current_folder_path = None;  // Reset to root
-                                        folder_tree = build_folder_tree(&current_disk_entries, None);
-                                        selected_folder = 0;
-                                        folder_list_state.select(Some(0));
-                                        view_mode = ViewMode::FolderTree;
-                                    }
+                                // Visualization works on local index, no need for disk to be mounted
+                                if let Some((disk, _, _, _, _)) = disk_info.get(selected_disk) {
+                                    current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
+                                    current_folder_path = None;  // Reset to root
+                                    folder_tree = build_folder_tree(&current_disk_entries, None);
+                                    selected_folder = 0;
+                                    folder_list_state.select(Some(0));
+                                    view_mode = ViewMode::FolderTree;
                                 }
                             }
                             KeyCode::Char('u') => {
-                                if let Some((disk, mounted, _, _, _)) = disk_info.get(selected_disk) {
-                                    if *mounted {
-                                        current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
-                                        current_folder_path = None;  // Reset to root
-                                        folder_tree = build_folder_tree(&current_disk_entries, None);
-                                        selected_folder = 0;
-                                        folder_list_state.select(Some(0));
-                                        view_mode = ViewMode::FolderUsage;
-                                    }
+                                // Visualization works on local index, no need for disk to be mounted
+                                if let Some((disk, _, _, _, _)) = disk_info.get(selected_disk) {
+                                    current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
+                                    current_folder_path = None;  // Reset to root
+                                    folder_tree = build_folder_tree(&current_disk_entries, None);
+                                    selected_folder = 0;
+                                    folder_list_state.select(Some(0));
+                                    view_mode = ViewMode::FolderUsage;
                                 }
                             }
                             _ => {}
@@ -542,28 +544,24 @@ fn run_tui(
                             KeyCode::Left => {
                                 if selected_disk > 0 {
                                     selected_disk -= 1;
-                                    if let Some((disk, mounted, _, _, _)) = disk_info.get(selected_disk) {
-                                        if *mounted {
-                                            current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
-                                            current_folder_path = None;
-                                            folder_tree = build_folder_tree(&current_disk_entries, None);
-                                            selected_folder = 0;
-                                            folder_list_state.select(Some(0));
-                                        }
+                                    if let Some((disk, _, _, _, _)) = disk_info.get(selected_disk) {
+                                        current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
+                                        current_folder_path = None;
+                                        folder_tree = build_folder_tree(&current_disk_entries, None);
+                                        selected_folder = 0;
+                                        folder_list_state.select(Some(0));
                                     }
                                 }
                             }
                             KeyCode::Right => {
                                 if selected_disk < disk_info.len() - 1 {
                                     selected_disk += 1;
-                                    if let Some((disk, mounted, _, _, _)) = disk_info.get(selected_disk) {
-                                        if *mounted {
-                                            current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
-                                            current_folder_path = None;
-                                            folder_tree = build_folder_tree(&current_disk_entries, None);
-                                            selected_folder = 0;
-                                            folder_list_state.select(Some(0));
-                                        }
+                                    if let Some((disk, _, _, _, _)) = disk_info.get(selected_disk) {
+                                        current_disk_entries = entry_repo.get_entries_by_disk(&disk.disk_id)?;
+                                        current_folder_path = None;
+                                        folder_tree = build_folder_tree(&current_disk_entries, None);
+                                        selected_folder = 0;
+                                        folder_list_state.select(Some(0));
                                     }
                                 }
                             }
