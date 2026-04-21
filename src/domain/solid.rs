@@ -76,10 +76,13 @@ impl Default for SolidLayerDepth {
 /// An atomic storage unit that cannot be split across disks
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AtomicUnit {
-    /// Root path of this unit
+    /// Root path of this unit (absolute path on source)
     pub root_path: String,
-    /// Display name
+    /// Display name (just the file/dir name)
     pub name: String,
+    /// Path relative to the input root directory (preserves directory structure)
+    /// When solid=inf, this contains the full relative path like "parent/child/file.txt"
+    pub relative_path: String,
     /// Total size in bytes
     pub size: u64,
     /// Depth from original input root
@@ -92,14 +95,24 @@ pub struct AtomicUnit {
 
 impl AtomicUnit {
     pub fn new(path: impl Into<String>, name: impl Into<String>) -> Self {
+        let path = path.into();
+        let name = name.into();
+        let relative_path = name.clone(); // Default: same as name
         Self {
-            root_path: path.into(),
-            name: name.into(),
+            root_path: path,
+            name,
+            relative_path,
             size: 0,
             depth: 0,
             is_solid_marked: false,
             file_count: 0,
         }
+    }
+
+    /// Create with explicit relative path (preserves directory structure)
+    pub fn with_relative_path(mut self, relative_path: impl Into<String>) -> Self {
+        self.relative_path = relative_path.into();
+        self
     }
 
     pub fn with_size(mut self, size: u64, file_count: usize) -> Self {

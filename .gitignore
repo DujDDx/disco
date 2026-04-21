@@ -1,4 +1,68 @@
+# Claude Code configuration (contains personal settings)
+.claude/
+
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock file for libraries (keep for binaries)
+# Uncomment if this is a library:
+# Cargo.lock
+
+# Test artifacts
+/tests/
+
+# macOS system files
 .DS_Store
-/target
-/docs
-/tests
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+
+# IDE and editor configurations
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs (IntelliJ, CLion, etc.)
+.idea/
+*.iml
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Other editors
+*.bak
+*.tmp
+
+# Build outputs
+dist/
+build/
+out/
+
+# Log files
+*.log
+logs/
+
+# Environment files (may contain secrets)
+.env
+.env.*
+!.env.example
+
+# Keep docs directory for open source documentation
+# (docs/ is intentionally NOT ignored)

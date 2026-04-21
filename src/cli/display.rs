@@ -25,24 +25,38 @@ pub fn create_copy_progress(total_bytes: u64) -> ProgressBar {
     pb
 }
 
-/// Format file size for display
+/// Format file size for display (localized)
 pub fn format_size(size: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
     const GB: u64 = MB * 1024;
     const TB: u64 = GB * 1024;
 
-    if size >= TB {
-        format!("{:.2} TB", size as f64 / TB as f64)
+    let key = if size >= TB {
+        "size-tb"
     } else if size >= GB {
-        format!("{:.2} GB", size as f64 / GB as f64)
+        "size-gb"
     } else if size >= MB {
-        format!("{:.2} MB", size as f64 / MB as f64)
+        "size-mb"
     } else if size >= KB {
-        format!("{:.2} KB", size as f64 / KB as f64)
+        "size-kb"
     } else {
-        format!("{} B", size)
-    }
+        "size-b"
+    };
+
+    let value = if size >= TB {
+        format!("{:.2}", size as f64 / TB as f64)
+    } else if size >= GB {
+        format!("{:.2}", size as f64 / GB as f64)
+    } else if size >= MB {
+        format!("{:.2}", size as f64 / MB as f64)
+    } else if size >= KB {
+        format!("{:.2}", size as f64 / KB as f64)
+    } else {
+        size.to_string()
+    };
+
+    crate::t!(key, "value" => value)
 }
 
 /// Format file size with color (cyan for emphasis)
@@ -50,21 +64,21 @@ pub fn format_size_colored(size: u64) -> ColoredString {
     format_size(size).cyan()
 }
 
-/// Format mount status for display
-pub fn format_mount_status(mounted: bool) -> &'static str {
+/// Format mount status for display (localized)
+pub fn format_mount_status(mounted: bool) -> String {
     if mounted {
-        "✓ Connected"
+        crate::t!("status-connected")
     } else {
-        "✗ Offline"
+        crate::t!("status-offline")
     }
 }
 
-/// Format mount status with color
+/// Format mount status with color (localized)
 pub fn format_mount_status_colored(status: crate::domain::disk::MountStatus) -> ColoredString {
     match status {
-        crate::domain::disk::MountStatus::Connected => "✓ Connected".green().bold(),
-        crate::domain::disk::MountStatus::Offline => "✗ Offline".red(),
-        crate::domain::disk::MountStatus::IdentityConflict => "⚠ Identity Conflict".yellow().bold(),
+        crate::domain::disk::MountStatus::Connected => format!("✓ {}", crate::t!("status-connected")).green().bold(),
+        crate::domain::disk::MountStatus::Offline => format!("✗ {}", crate::t!("status-offline")).red(),
+        crate::domain::disk::MountStatus::IdentityConflict => format!("⚠ {}", crate::t!("status-conflict")).yellow().bold(),
     }
 }
 
@@ -124,13 +138,13 @@ pub fn print_separator() {
     println!("{}", "─".repeat(80).bright_black());
 }
 
-/// Print styled disk list item
+/// Print styled disk list item (localized)
 pub fn print_disk_item(name: &str, id: &str, status: crate::domain::disk::MountStatus, capacity: u64, file_count: usize) {
     let status_str = format_mount_status_colored(status);
     println!("  {} {}", format_disk_name(name), format_disk_id(id));
-    println!("    Status: {}", status_str);
-    println!("    Capacity: {}", format_size_colored(capacity));
-    println!("    Files: {}", format!("{}", file_count).cyan());
+    println!("    {}: {}", crate::t!("label-status"), status_str);
+    println!("    {}: {}", crate::t!("label-capacity"), format_size_colored(capacity));
+    println!("    {}: {}", crate::t!("label-files"), crate::t!("count-files", "count" => file_count.to_string()));
 }
 
 /// Print styled table header
@@ -165,13 +179,13 @@ pub fn move_cursor(row: u16, col: u16) {
     print!("\x1B[{};{}H", row, col);
 }
 
-/// Print error with suggestion
+/// Print error with suggestion (localized)
 pub fn print_error_with_suggestion(error: &str, suggestion: &str) {
     println!("{}", format!("✗ {}", error).red().bold());
-    println!("  {}", format!("Suggestion: {}", suggestion).yellow());
+    println!("  {}", format!("{}: {}", crate::t!("label-suggestion"), suggestion).yellow());
 }
 
-/// Print styled disk error with user-friendly message
+/// Print styled disk error with user-friendly message (localized)
 pub fn print_disk_error(error: &crate::DiscoError) {
     let severity = error.severity();
     let user_msg = error.user_description();
@@ -184,7 +198,7 @@ pub fn print_disk_error(error: &crate::DiscoError) {
             println!("{}", format!("✗ {}", user_msg).red().bold());
         }
         crate::ErrorSeverity::Critical => {
-            println!("{}", format!("✗✗ CRITICAL: {}", user_msg).red().bold().on_black());
+            println!("{}", format!("✗✗ {}: {}", crate::t!("label-critical"), user_msg).red().bold().on_black());
         }
     }
 

@@ -60,6 +60,12 @@ chrono = { version = "0.4", features = ["serde"] }
 # Path handling
 path-absolutize = "3"
 
+# Internationalization (i18n)
+fluent = "0.16"
+fluent-bundle = "0.15"
+unic-langid = "0.9"
+sys-locale = "0.3"
+
 [dev-dependencies]
 tempfile = "3"
 assert_cmd = "2"

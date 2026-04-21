@@ -3,6 +3,7 @@
 pub mod cli;
 pub mod domain;
 pub mod executor;
+pub mod i18n;
 pub mod index;
 pub mod planner;
 pub mod persistence;

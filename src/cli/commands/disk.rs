@@ -6,6 +6,7 @@ use crate::cli::context::AppContext;
 use crate::cli::display::{format_size, format_mount_status};
 use crate::domain::disk::{Disk, DiskId, MountStatus};
 use crate::storage::platform::DiskDetector;
+use crate::t;
 use std::io::{self, Write};
 
 /// Add a disk to the pool
@@ -44,13 +45,13 @@ pub fn handle_add_with_ctx(ctx: &AppContext, mount_point: String, name: Option<S
     }
 
     // Detect disk identity
-    println!("Detecting disk at {}...", mount_point);
+    println!("{}", crate::t!("disk-detecting", "path" => mount_point.clone()));
     let identity = detector.detect_identity(&mount_point)?;
 
     // Check if disk is already registered
     if let Some(existing) = disk_repo.find_disk_by_identity(&identity)? {
-        println!("Disk already registered as: {}", existing.name);
-        println!("Disk ID: {}", existing.disk_id);
+        println!("{}", crate::t!("disk-already-registered", "name" => existing.name.clone()));
+        println!("{}", crate::t!("disk-id", "id" => existing.disk_id.as_str().to_string()));
         return Ok(());
     }
 
@@ -60,9 +61,9 @@ pub fn handle_add_with_ctx(ctx: &AppContext, mount_point: String, name: Option<S
         None => {
             // Prompt for name
             let default_name = identity.volume_label.clone()
-                .unwrap_or_else(|| "New Disk".to_string());
+                .unwrap_or_else(|| t!("disk-default-name"));
 
-            print!("Enter disk name [{}]: ", default_name);
+            print!("{} ", crate::t!("disk-name-prompt", "default" => default_name.clone()));
             io::stdout().flush().ok();
 
             let mut input = String::new();
@@ -98,10 +99,10 @@ pub fn handle_add_with_ctx(ctx: &AppContext, mount_point: String, name: Option<S
     // Insert into database
     disk_repo.insert_disk(&disk)?;
 
-    println!("\n✓ Disk registered successfully!");
-    println!("  Name: {}", disk_name);
-    println!("  ID: {}", disk_id);
-    println!("  Capacity: {}", format_size(disk.identity.capacity_bytes));
+    println!("\n✓ {}", t!("disk-registered-success"));
+    println!("  {}", crate::t!("disk-name", "name" => disk_name));
+    println!("  {}", crate::t!("disk-id", "id" => disk_id.as_str().to_string()));
+    println!("  {}", crate::t!("disk-capacity", "size" => format_size(disk.identity.capacity_bytes)));
 
     Ok(())
 }
@@ -119,14 +120,14 @@ pub fn handle_list_with_ctx(ctx: &AppContext, detailed: bool) -> Result<()> {
     let disks = disk_repo.list_disks()?;
 
     if disks.is_empty() {
-        println!("No disks registered. Use 'disco disk add <mount-point>' to add a disk.");
+        println!("{}", t!("no-disks-registered"));
         return Ok(());
     }
 
     // Refresh mount status
     let mount_points = detector.list_mount_points()?;
 
-    println!("\nRegistered Disks ({}):\n", disks.len());
+    println!("\n{}:\n", crate::t!("disk-list-title", "count" => disks.len().to_string()));
 
     for disk in disks {
         // Check if disk is currently mounted
@@ -146,26 +147,26 @@ pub fn handle_list_with_ctx(ctx: &AppContext, detailed: bool) -> Result<()> {
         let status_str = format_mount_status(is_mounted);
 
         println!("  {} [{}]", disk.name, disk.disk_id);
-        println!("    Status: {}", status_str);
-        println!("    Capacity: {}", format_size(disk.identity.capacity_bytes));
+        println!("    {}", crate::t!("disk-status", "status" => status_str));
+        println!("    {}", crate::t!("disk-capacity", "size" => format_size(disk.identity.capacity_bytes)));
 
         if let Some(mount) = &current_mount {
-            println!("    Mount point: {}", mount);
+            println!("    {}", crate::t!("disk-mount-point", "path" => mount.clone()));
         } else if let Some(last) = &disk.last_mount_point {
-            println!("    Last mount: {}", last);
+            println!("    {}", crate::t!("disk-last-mount", "path" => last.clone()));
         }
 
         if detailed {
             if let Some(ref serial) = disk.identity.serial {
-                println!("    Serial: {}", serial);
+                println!("    {}", crate::t!("disk-serial", "serial" => serial.clone()));
             }
             if let Some(ref uuid) = disk.identity.volume_uuid {
-                println!("    Volume UUID: {}", uuid);
+                println!("    {}", crate::t!("disk-uuid", "uuid" => uuid.clone()));
             }
             if let Some(ref label) = disk.identity.volume_label {
-                println!("    Volume Label: {}", label);
+                println!("    {}", crate::t!("disk-label", "label" => label.clone()));
             }
-            println!("    Registered: {}", disk.first_registered.format("%Y-%m-%d %H:%M"));
+            println!("    {}", crate::t!("disk-registered", "date" => disk.first_registered.format("%Y-%m-%d %H:%M").to_string()));
         }
 
         println!();

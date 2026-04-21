@@ -15,6 +15,7 @@ use crate::cli::display::{format_size, format_mount_status_colored, print_succes
 use crate::domain::disk::DiskId;
 use crate::storage::platform::{DiskDetector, get_detector};
 use crate::Result;
+use crate::t;
 use rustyline::{Config, Editor, error::ReadlineError, history::DefaultHistory};
 use std::io::{self, Write};
 use colored::Colorize;
@@ -40,9 +41,9 @@ pub fn run_interactive() -> Result<()> {
 
     // Print welcome message
     println!();
-    print_header("Disco Interactive Shell");
-    print_info("Type 'help' for available commands, 'exit' to quit.");
-    print_info("Use 'menu' for visual navigation with arrow keys.");
+    print_header(&t!("shell-welcome-title"));
+    print_info(&t!("shell-welcome-help"));
+    print_info(&t!("shell-welcome-menu"));
     println!();
 
     // REPL loop
@@ -68,15 +69,15 @@ pub fn run_interactive() -> Result<()> {
                 }
             }
             Err(ReadlineError::Interrupted) => {
-                println!("{}", "^C".yellow());
+                println!("{}", t!("shell-interrupted").yellow());
                 continue;
             }
             Err(ReadlineError::Eof) => {
-                println!("{}", "^D".yellow());
+                println!("{}", t!("shell-eof").yellow());
                 break;
             }
             Err(e) => {
-                print_error(&format!("Input error: {}", e));
+                print_error(&crate::t!("shell-input-error", "error" => e.to_string()));
                 break;
             }
         }
@@ -84,7 +85,7 @@ pub fn run_interactive() -> Result<()> {
 
     // Save history
     let _ = editor.save_history(&history_path);
-    print_success("Goodbye!");
+    print_success(&t!("action-goodbye"));
 
     Ok(())
 }
@@ -178,13 +179,13 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
         }
         "disk" => {
             if tokens.len() < 2 {
-                print_warning("Usage: disk <add|list|rename|remove>");
+                print_warning(&t!("usage-disk"));
                 return Ok(false);
             }
             match tokens[1].as_str() {
                 "add" => {
                     if tokens.len() < 3 {
-                        print_warning("Usage: disk add <mount-point> [--name N]");
+                        print_warning(&t!("usage-disk-add"));
                         return Ok(false);
                     }
                     let mount_point = tokens[2].clone();
@@ -199,37 +200,37 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
                 }
                 "rename" => {
                     if tokens.len() < 4 {
-                        print_warning("Usage: disk rename <disk-id> <new-name>");
+                        print_warning(&t!("usage-disk-rename"));
                         return Ok(false);
                     }
                     let disk_id = DiskId::new(tokens[2].clone());
                     let new_name = tokens[3].clone();
                     disk_repo.update_disk_name(&disk_id, &new_name)?;
-                    print_success(&format!("Disk renamed to: {}", new_name));
+                    print_success(&crate::t!("disk-rename-success", "name" => new_name));
                     Ok(false)
                 }
                 "remove" => {
                     if tokens.len() < 3 {
-                        print_warning("Usage: disk remove <disk-id>");
+                        print_warning(&t!("usage-disk-remove"));
                         return Ok(false);
                     }
                     let disk_id = DiskId::new(tokens[2].clone());
                     // Confirm deletion
-                    print!("{} Are you sure you want to remove disk {}? [y/N] ", "⚠".yellow(), disk_id);
+                    print!("{} {}", "⚠".yellow(), crate::t!("confirm-remove-disk", "disk" => disk_id.as_str()));
                     io::stdout().flush().ok();
                     let mut input = String::new();
                     io::stdin().read_line(&mut input).ok();
                     if input.trim().to_lowercase().starts_with('y') {
                         disk_repo.delete_disk(&disk_id)?;
-                        print_success("Disk removed.");
+                        print_success(&t!("disk-removed-success"));
                     } else {
-                        print_info("Cancelled.");
+                        print_info(&t!("action-cancelled"));
                     }
                     Ok(false)
                 }
                 _ => {
-                    print_warning(&format!("Unknown disk subcommand: {}", tokens[1]));
-                    println!("  Available: {}", "add, list, rename, remove".bright_black());
+                    print_warning(&crate::t!("unknown-disk-subcommand", "command" => tokens[1].clone()));
+                    println!("  {}", format!("{}: {}", t!("available-disk-commands"), "add, list, rename, remove".bright_black()));
                     Ok(false)
                 }
             }
@@ -244,7 +245,7 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
         }
         "search" => {
             if tokens.len() < 2 {
-                print_warning("Usage: search <keyword> [--ext E] [--limit N]");
+                print_warning(&t!("usage-search"));
                 return Ok(false);
             }
             let keyword = tokens[1].clone();
@@ -257,18 +258,18 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
         }
         "get" => {
             if tokens.len() < 2 {
-                print_warning("Usage: get <entry-id> [--locate]");
+                print_warning(&t!("usage-get"));
                 return Ok(false);
             }
             let entry_id = tokens[1].parse::<i64>()
-                .map_err(|_| crate::DiscoError::InvalidPath("Invalid entry ID".to_string()))?;
+                .map_err(|_| crate::DiscoError::InvalidPath(t!("get-invalid-id")))?;
             let locate = has_flag(&tokens, "--locate") || has_flag(&tokens, "-l");
             handle_get_with_ctx(ctx, entry_id, locate)?;
             Ok(false)
         }
         "store" => {
             if tokens.len() < 2 {
-                print_warning("Usage: store <paths...> [--solid-layer S]");
+                print_warning(&t!("usage-store"));
                 return Ok(false);
             }
             let paths: Vec<String> = tokens[1..].iter()
@@ -283,7 +284,7 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
         }
         "retrieve" => {
             if tokens.len() < 2 {
-                print_warning("Usage: retrieve <keyword>");
+                print_warning(&t!("usage-retrieve"));
                 return Ok(false);
             }
             let keyword = tokens[1].clone();
@@ -292,7 +293,7 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
         }
         "solid" => {
             if tokens.len() < 3 {
-                print_warning("Usage: solid <set|unset> <path> [--disk D]");
+                print_warning(&t!("usage-solid"));
                 return Ok(false);
             }
             match tokens[1].as_str() {
@@ -309,7 +310,7 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
                     Ok(false)
                 }
                 _ => {
-                    print_warning(&format!("Unknown solid subcommand: {}", tokens[1]));
+                    print_warning(&crate::t!("unknown-solid-subcommand", "command" => tokens[1].clone()));
                     Ok(false)
                 }
             }
@@ -320,8 +321,8 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
             Ok(false)
         }
         _ => {
-            print_warning(&format!("Unknown command: {}", tokens[0]));
-            print_info("Type 'help' for available commands, or 'menu' for visual navigation.");
+            print_warning(&crate::t!("unknown-command", "command" => tokens[0].clone()));
+            print_info(&format!("{} {}", t!("shell-welcome-help"), t!("shell-welcome-menu")));
             Ok(false)
         }
     }
@@ -347,85 +348,85 @@ fn show_help(command: Option<&str>) {
     match command {
         None => {
             println!();
-            print_header("Available Commands");
+            print_header(&t!("help-available-commands"));
             println!();
-            println!("  {}  {}", "disk add <mount> [--name N]".bright_black(), "Register a new disk".white());
-            println!("  {}  {}", "disk list [-d]".bright_black(), "List registered disks".white());
-            println!("  {}  {}", "disk rename <id> <name>".bright_black(), "Rename a disk".white());
-            println!("  {}  {}", "disk remove <id>".bright_black(), "Remove a disk".white());
+            println!("  {}  {}", "disk add <mount> [--name N]".bright_black(), t!("help-disk-add").white());
+            println!("  {}  {}", "disk list [-d]".bright_black(), t!("help-disk-list").white());
+            println!("  {}  {}", "disk rename <id> <name>".bright_black(), t!("help-disk-rename").white());
+            println!("  {}  {}", "disk remove <id>".bright_black(), t!("help-disk-remove").white());
             println!();
-            println!("  {}  {}", "scan [--all] [--disk D] [--hash]".bright_black(), "Scan disks for files".white());
-            println!("  {}  {}", "search <keyword> [--ext E]".bright_black(), "Search indexed files".white());
-            println!("  {}  {}", "get <id> [--locate]".bright_black(), "Get file info and location".white());
-            println!("  {}  {}", "store <paths...> [--solid-layer S]".bright_black(), "Store files to disks".white());
+            println!("  {}  {}", "scan [--all] [--disk D] [--hash]".bright_black(), t!("help-scan").white());
+            println!("  {}  {}", "search <keyword> [--ext E]".bright_black(), t!("help-search").white());
+            println!("  {}  {}", "get <id> [--locate]".bright_black(), t!("help-get").white());
+            println!("  {}  {}", "store <paths...> [--solid-layer S]".bright_black(), t!("help-store").white());
+            println!("  {}  {}", "retrieve <keyword>".bright_black(), t!("help-retrieve").white());
             println!();
-            println!("  {}  {}", "solid set <path> [--disk D]".bright_black(), "Mark directory as solid".white());
-            println!("  {}  {}", "solid unset <path>".bright_black(), "Remove solid marker".white());
+            println!("  {}  {}", "solid set <path> [--disk D]".bright_black(), t!("help-solid-set").white());
+            println!("  {}  {}", "solid unset <path>".bright_black(), t!("help-solid-unset").white());
             println!();
-            println!("  {}  {}", "visualize [--disk D]".bright_black(), "Open visualization UI".white());
-            println!("  {}  {}", "status".bright_black(), "Show disk status overview".white());
-            println!("  {}  {}", "refresh".bright_black(), "Refresh disk mount status".white());
-            println!("  {}  {}", "repair".bright_black(), "Repair offline disk identities".white());
-            println!("  {}  {}", "retrieve <keyword>".bright_black(), "Retrieve files from disks".white());
-            println!("  {}  {}", "menu".bright_black(), "Open visual menu navigation".white());
+            println!("  {}  {}", "visualize [--disk D]".bright_black(), t!("help-visualize").white());
+            println!("  {}  {}", "status".bright_black(), t!("help-status").white());
+            println!("  {}  {}", "refresh".bright_black(), t!("help-refresh").white());
+            println!("  {}  {}", "repair".bright_black(), t!("help-repair").white());
+            println!("  {}  {}", "menu".bright_black(), t!("help-menu").white());
             println!();
-            println!("  {}  {}", "help [command]".bright_black(), "Show detailed help".white());
-            println!("  {}  {}", "exit / quit".bright_black(), "Exit the shell".white());
+            println!("  {}  {}", "help [command]".bright_black(), t!("help-detailed").white());
+            println!("  {}  {}", "exit / quit".bright_black(), t!("help-exit").white());
             println!();
         }
         Some("disk") => {
             println!();
-            print_header("Disk Commands");
+            print_header(&t!("help-disk-commands"));
             println!("  {}", "disk add <mount-point> [--name N]".cyan());
-            println!("    {}", "Register a new disk at the specified mount point.".white());
+            println!("    {}", t!("help-disk-add-desc").white());
             println!();
             println!("  {}", "disk list [-d|--detailed]".cyan());
-            println!("    {}", "List all registered disks with optional details.".white());
+            println!("    {}", t!("help-disk-list-desc").white());
             println!();
             println!("  {}", "disk rename <disk-id> <new-name>".cyan());
-            println!("    {}", "Change the name of a registered disk.".white());
+            println!("    {}", t!("help-disk-rename-desc").white());
             println!();
             println!("  {}", "disk remove <disk-id>".cyan());
-            println!("    {}", "Remove a disk and its indexed entries (requires confirmation).".white());
+            println!("    {}", t!("help-disk-remove-desc").white());
             println!();
         }
         Some("scan") => {
             println!();
-            print_header("Scan Command");
+            print_header(&t!("help-scan-commands"));
             println!("  {}", "scan [--all] [--disk D] [--hash] [--full]".cyan());
-            println!("    {}    {}", "--all".yellow(), "Scan all registered disks".white());
-            println!("    {}     {}", "--disk D".yellow(), "Scan specific disk by ID or name".white());
-            println!("    {}       {}", "--hash".yellow(), "Calculate file hashes during scan".white());
-            println!("    {}       {}", "--full".yellow(), "Force full scan (not incremental)".white());
+            println!("    {}    {}", "--all".yellow(), t!("help-scan-all-desc").white());
+            println!("    {}     {}", "--disk D".yellow(), t!("help-scan-disk-desc").white());
+            println!("    {}       {}", "--hash".yellow(), t!("help-scan-hash-desc").white());
+            println!("    {}       {}", "--full".yellow(), t!("help-scan-full-desc").white());
             println!();
         }
         Some("status") => {
             println!();
-            print_header("Status Command");
-            println!("  {}", "Display overview of all disks:".white());
-            println!("    {}", "- Disk name, ID, and mount status".bright_black());
-            println!("    {}", "- Capacity and indexed file count".bright_black());
-            println!("    {}", "- Summary totals".bright_black());
+            print_header(&t!("help-status-commands"));
+            println!("  {}", t!("help-status-desc").white());
+            println!("    {}", format!("- {}", t!("help-status-detail1")).bright_black());
+            println!("    {}", format!("- {}", t!("help-status-detail2")).bright_black());
+            println!("    {}", format!("- {}", t!("help-status-detail3")).bright_black());
             println!();
         }
         Some("refresh") => {
             println!();
-            print_header("Refresh Command");
-            println!("  {}", "Force refresh mount status for all disks.".white());
-            println!("  {}", "Shows detailed diagnostics for offline disks.".white());
+            print_header(&t!("help-refresh-commands"));
+            println!("  {}", t!("help-refresh-desc").white());
+            println!("  {}", t!("help-refresh-desc2").white());
             println!();
         }
         Some("repair") => {
             println!();
-            print_header("Repair Command");
-            println!("  {}", "Interactive repair for offline disks.".white());
-            println!("  {}", "Detects disks that appear offline due to identity mismatch,".white());
-            println!("  {}", "and offers options to reconnect, skip, or remove.".white());
+            print_header(&t!("help-repair-commands"));
+            println!("  {}", t!("help-repair-desc").white());
+            println!("  {}", t!("help-repair-desc2").white());
+            println!("  {}", t!("help-repair-desc3").white());
             println!();
         }
         Some(cmd) => {
-            print_warning(&format!("No detailed help for: {}", cmd));
-            print_info("Type 'help' for general help.");
+            print_warning(&crate::t!("help-no-detail", "command" => cmd.to_string()));
+            print_info(&t!("help-general"));
         }
     }
 }
@@ -439,12 +440,12 @@ fn handle_status(ctx: &AppContext) -> Result<()> {
     let mount_points = detector.list_mount_points()?;
 
     if disks.is_empty() {
-        print_warning("No disks registered.");
+        print_warning(&t!("no-disks-registered"));
         return Ok(());
     }
 
     println!();
-    print_header("Disk Status Overview");
+    print_header(&t!("status-title"));
     print_separator();
 
     let mut total_files = 0usize;
@@ -480,25 +481,23 @@ fn handle_status(ctx: &AppContext) -> Result<()> {
         total_files += file_count;
 
         println!("  {} {}", format_disk_name(&disk.name), format_disk_id(disk.disk_id.as_str()));
-        println!("    {}: {}", "Status".bright_black(), format_mount_status_colored(status));
-        println!("    {}: {}", "Capacity".bright_black(), format_size(disk.identity.capacity_bytes).cyan());
-        println!("    {}: {}", "Indexed files".bright_black(), file_count.to_string().cyan());
+        println!("    {}: {}", t!("label-status"), format_mount_status_colored(status));
+        println!("    {}: {}", t!("label-capacity"), format_size(disk.identity.capacity_bytes).cyan());
+        println!("    {}: {}", t!("label-files"), crate::t!("count-files", "count" => file_count.to_string()));
         if let Some(mount) = current_mount {
-            println!("    {}: {}", "Mount".bright_black(), mount.green());
+            println!("    {}: {}", t!("disk-mount-point"), crate::t!("status-mounted", "path" => mount.clone()).green());
         }
         println!();
     }
 
     print_separator();
-    println!("{}: {} disks total, {} {}, {} {}",
-        "Summary".white().bold(),
-        disks.len(),
-        online_count.to_string().green(),
-        "online".white(),
-        offline_count.to_string().red(),
-        "offline".white()
+    println!("{}: {}, {}, {}",
+        t!("status-summary").white().bold(),
+        crate::t!("count-disks", "count" => disks.len().to_string()),
+        crate::t!("status-online-count", "count" => online_count.to_string()).green(),
+        crate::t!("status-offline-count", "count" => offline_count.to_string()).red()
     );
-    println!("{}: {}", "Total indexed files".white().bold(), total_files.to_string().cyan());
+    println!("{}: {}", t!("status-total-files").white().bold(), crate::t!("count-files", "count" => total_files.to_string()).cyan());
     println!();
 
     Ok(())
@@ -514,13 +513,13 @@ fn handle_refresh(ctx: &AppContext) -> Result<()> {
     );
 
     println!();
-    print_header("Refreshing Disk Status...");
+    print_header(&t!("refresh-title"));
     println!();
 
     let report = mount_checker.force_refresh()?;
 
     print_separator();
-    print_header("Mount Points Detected");
+    print_header(&t!("refresh-mount-title"));
     for detail in &report.mount_points {
         println!("  {} ({}, {})",
             detail.mount_point.green(),
@@ -531,20 +530,20 @@ fn handle_refresh(ctx: &AppContext) -> Result<()> {
     println!();
 
     print_separator();
-    print_header("Disk Status Results");
+    print_header(&t!("refresh-disk-title"));
     for disk_report in &report.disk_reports {
         println!("  {} {}", format_disk_name(&disk_report.name), format_disk_id(disk_report.disk_id.as_str()));
-        println!("    {}: {}", "Status".bright_black(), format_mount_status_colored(disk_report.status));
+        println!("    {}: {}", t!("label-status"), format_mount_status_colored(disk_report.status));
 
         if let Some(mount) = &disk_report.mount_point {
-            println!("    {}: {}", "Mount".bright_black(), mount.green());
+            println!("    {}: {}", t!("disk-mount-point"), mount.green());
         }
 
         // Show diagnostic for offline disks
         if disk_report.status == crate::domain::disk::MountStatus::Offline {
-            println!("    {}: {}", "Diagnostic".yellow(), "No matching mount found".yellow());
+            println!("    {}: {}", t!("refresh-diagnostic").yellow(), t!("refresh-no-match").yellow());
             if !disk_report.potential_matches.is_empty() {
-                println!("    {}:", "Potential matches".bright_black());
+                println!("    {}:", t!("refresh-potential").bright_black());
                 for match_detail in &disk_report.potential_matches {
                     println!("      {} - {}", match_detail.mount_point.white(), match_detail.match_result.reason().yellow());
                 }
@@ -578,23 +577,23 @@ fn handle_repair(ctx: &AppContext) -> Result<()> {
         .collect();
 
     if offline_disks.is_empty() {
-        print_success("All disks are online. No repair needed.");
+        print_success(&t!("repair-all-online"));
         return Ok(());
     }
 
     println!();
-    print_warning(&format!("Found {} offline disk(s):", offline_disks.len()));
+    print_warning(&crate::t!("repair-found-offline", "count" => offline_disks.len().to_string()));
     println!();
 
     for disk in offline_disks {
         println!("{} \"{}\" [{}] {}",
-            "Disk".white(),
+            t!("repair-disk-label").white(),
             disk.name.cyan(),
             disk.disk_id.as_str().bright_black(),
-            "OFFLINE".red().bold()
+            t!("status-offline").red().bold()
         );
-        println!("  {}: {:?}", "Volume label".bright_black(), disk.identity.volume_label);
-        println!("  {}: {}", "Capacity".bright_black(), format_size(disk.identity.capacity_bytes).cyan());
+        println!("  {}: {:?}", t!("repair-volume-label").bright_black(), disk.identity.volume_label);
+        println!("  {}: {}", t!("label-capacity").bright_black(), format_size(disk.identity.capacity_bytes).cyan());
 
         // Try to find matching mount point by label
         let mut candidates: Vec<(String, crate::domain::disk::DiskIdentity)> = Vec::new();
@@ -610,25 +609,25 @@ fn handle_repair(ctx: &AppContext) -> Result<()> {
         }
 
         if candidates.is_empty() {
-            print_warning("  No matching mount points found.");
-            println!("  {} Skip", "[1]".bright_black());
-            println!("  {} Remove this disk registration", "[2]".red());
+            print_warning(&format!("  {}", t!("repair-no-candidates")));
+            println!("  {} {}", "[1]".bright_black(), t!("repair-skip"));
+            println!("  {} {}", "[2]".red(), t!("repair-remove"));
             println!();
-            print!("{} ", "Select option:".yellow());
+            print!("{} ", t!("repair-select").yellow());
             io::stdout().flush().ok();
             let mut input = String::new();
             io::stdin().read_line(&mut input).ok();
             match input.trim() {
                 "2" => {
                     disk_repo.delete_disk(&disk.disk_id)?;
-                    print_success("  Disk removed.");
+                    print_success(&format!("  {}", t!("repair-removed")));
                 }
                 _ => {
-                    print_info("  Skipped.");
+                    print_info(&format!("  {}", t!("repair-skipped")));
                 }
             }
         } else {
-            print_info(&format!("  Found {} candidate mount point(s):", candidates.len()));
+            print_info(&crate::t!("repair-candidates", "count" => candidates.len().to_string()));
             for (i, (mount, identity)) in candidates.iter().enumerate() {
                 println!("    {} {} (label: {:?})",
                     format!("[{}]", i + 1).bright_black(),
@@ -637,11 +636,11 @@ fn handle_repair(ctx: &AppContext) -> Result<()> {
                 );
             }
             println!();
-            println!("  {} Reconnect - update identity to match current volume", "[R]".green());
-            println!("  {} Skip this disk", "[S]".bright_black());
-            println!("  {} Delete this disk registration", "[D]".red());
+            println!("  {} {}", "[R]".green(), t!("repair-reconnect"));
+            println!("  {} {}", "[S]".bright_black(), t!("repair-skip-disk"));
+            println!("  {} {}", "[D]".red(), t!("repair-delete"));
             println!();
-            print!("{} ", "Select option:".yellow());
+            print!("{} ", t!("repair-select").yellow());
             io::stdout().flush().ok();
             let mut input = String::new();
             io::stdin().read_line(&mut input).ok();
@@ -652,23 +651,23 @@ fn handle_repair(ctx: &AppContext) -> Result<()> {
                     if let Some((mount, new_identity)) = candidates.first() {
                         disk_repo.update_disk_identity(&disk.disk_id, new_identity)?;
                         disk_repo.update_last_mount_point(&disk.disk_id, mount.clone())?;
-                        print_success("  Disk identity updated and reconnected.");
-                        println!("  {}: {}", "New mount point".bright_black(), mount.green());
+                        print_success(&format!("  {}", t!("repair-identity-updated")));
+                        println!("  {}: {}", t!("repair-new-mount").bright_black(), mount.green());
                     }
                 }
                 "D" => {
                     disk_repo.delete_disk(&disk.disk_id)?;
-                    print_success("  Disk removed.");
+                    print_success(&format!("  {}", t!("repair-removed")));
                 }
                 _ => {
-                    print_info("  Skipped.");
+                    print_info(&format!("  {}", t!("repair-skipped")));
                 }
             }
         }
         println!();
     }
 
-    print_success("Repair complete.");
+    print_success(&t!("repair-complete"));
     Ok(())
 }
 
@@ -683,113 +682,119 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
     };
     use std::io;
 
-    // Menu items: (number_key, label, description)
+    // Menu items: (number_key, label_key, desc_key)
     let menu_items: Vec<(&str, &str, &str)> = vec![
-        ("1", "磁盘管理", "Add, list, rename, remove disks"),
-        ("2", "扫描文件", "Scan disks for files"),
-        ("3", "搜索文件", "Search indexed files"),
-        ("4", "存储文件", "Store files to disks"),
-        ("5", "检索文件", "Retrieve files from disks"),
-        ("6", "查看状态", "Show disk status overview"),
-        ("7", "刷新状态", "Force refresh mount detection"),
-        ("8", "修复离线", "Fix offline disk identities"),
-        ("9", "可视化", "Open TUI visualization"),
-        ("0", "设置", "Configure hash verification"),
-        ("q", "退出菜单", "Return to command mode"),
+        ("1", "menu-disk-management", "menu-desc-disk"),
+        ("2", "menu-scan-files", "menu-desc-scan"),
+        ("3", "menu-search-files", "menu-desc-search"),
+        ("4", "menu-store-files", "menu-desc-store"),
+        ("5", "menu-retrieve-files", "menu-desc-retrieve"),
+        ("6", "menu-view-status", "menu-desc-status"),
+        ("7", "menu-refresh-status", "menu-desc-refresh"),
+        ("8", "menu-repair-offline", "menu-desc-repair"),
+        ("9", "menu-visualize", "menu-desc-visualize"),
+        ("0", "menu-settings", "menu-desc-settings"),
+        ("q", "menu-exit", "menu-desc-exit"),
     ];
 
     let mut selected = 0;
+    let mut needs_redraw = true;
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, Hide)?;
 
     loop {
-        // Clear screen and draw menu
-        execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
+        // Only redraw when needed
+        if needs_redraw {
+            // Clear screen and draw menu
+            execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
 
-        // Header with colorful border and DISCO ASCII art
-        execute!(
-            stdout,
-            SetForegroundColor(CColor::Magenta),
-            Print("\r\n"),
-            Print("  ╔══════════════════════════════════════════════╗\r\n"),
-            SetForegroundColor(CColor::Cyan),
-            Print("  ║                                              ║\r\n"),
-            Print("  ║    "), SetForegroundColor(CColor::Yellow),
-            Print("██████╗ ██╗███████╗ ██████╗ ████████╗"), SetForegroundColor(CColor::Cyan),
-            Print("     ║\r\n"),
-            Print("  ║    "), SetForegroundColor(CColor::Yellow),
-            Print("██╔══██╗██║██╔════╝██╔════╝ ██╔═══██║"), SetForegroundColor(CColor::Cyan),
-            Print("     ║\r\n"),
-            Print("  ║    "), SetForegroundColor(CColor::Yellow),
-            Print("██║  ██║██║███████╗██║      ██║   ██║"), SetForegroundColor(CColor::Cyan),
-            Print("     ║\r\n"),
-            Print("  ║    "), SetForegroundColor(CColor::Yellow),
-            Print("██║  ██║██║╚════██║██║      ██║   ██║"), SetForegroundColor(CColor::Cyan),
-            Print("     ║\r\n"),
-            Print("  ║    "), SetForegroundColor(CColor::Yellow),
-            Print("██████╔╝██║███████║╚██████╗ ████████║"), SetForegroundColor(CColor::Cyan),
-            Print("     ║\r\n"),
-            Print("  ║    "), SetForegroundColor(CColor::Yellow),
-            Print("╚═════╝ ╚═╝╚══════╝ ╚═════╝ ╚═══════╝"), SetForegroundColor(CColor::Cyan),
-            Print("     ║\r\n"),
-            Print("  ║                                              ║\r\n"),
-            SetForegroundColor(CColor::Magenta),
-            Print("  ╚══════════════════════════════════════════════╝\r\n"),
-            ResetColor,
-            Print("\r\n")
-        )?;
-
-        // Menu items with numbers and arrows
-        for (i, (key, label_cn, desc)) in menu_items.iter().enumerate() {
-            let arrow = if i == selected { "  ▶ " } else { "    " };
-            let key_color = if i == selected { CColor::Green } else { CColor::Yellow };
-            let label_color = if i == selected { CColor::White } else { CColor::Grey };
-            let desc_color = CColor::DarkGrey;
-
+            // Header with colorful border and DISCO ASCII art
             execute!(
                 stdout,
-                Print(arrow),
-                SetForegroundColor(key_color),
-                Print(format!("[{}]", key)),
-                ResetColor,
-                Print(" "),
-                SetForegroundColor(label_color),
-                Print(*label_cn),
-                ResetColor,
-                SetForegroundColor(desc_color),
-                Print(format!(" - {}", desc)),
+                SetForegroundColor(CColor::Magenta),
+                Print("\r\n"),
+                Print("  ╔══════════════════════════════════════════════╗\r\n"),
+                SetForegroundColor(CColor::Cyan),
+                Print("  ║                                              ║\r\n"),
+                Print("  ║    "), SetForegroundColor(CColor::Yellow),
+                Print("██████╗ ██╗███████╗ ██████╗ ████████╗"), SetForegroundColor(CColor::Cyan),
+                Print("     ║\r\n"),
+                Print("  ║    "), SetForegroundColor(CColor::Yellow),
+                Print("██╔══██╗██║██╔════╝██╔════╝ ██╔═══██║"), SetForegroundColor(CColor::Cyan),
+                Print("     ║\r\n"),
+                Print("  ║    "), SetForegroundColor(CColor::Yellow),
+                Print("██║  ██║██║███████╗██║      ██║   ██║"), SetForegroundColor(CColor::Cyan),
+                Print("     ║\r\n"),
+                Print("  ║    "), SetForegroundColor(CColor::Yellow),
+                Print("██║  ██║██║╚════██║██║      ██║   ██║"), SetForegroundColor(CColor::Cyan),
+                Print("     ║\r\n"),
+                Print("  ║    "), SetForegroundColor(CColor::Yellow),
+                Print("██████╔╝██║███████║╚██████╗ ████████║"), SetForegroundColor(CColor::Cyan),
+                Print("     ║\r\n"),
+                Print("  ║    "), SetForegroundColor(CColor::Yellow),
+                Print("╚═════╝ ╚═╝╚══════╝ ╚═════╝ ╚═══════╝"), SetForegroundColor(CColor::Cyan),
+                Print("     ║\r\n"),
+                Print("  ║                                              ║\r\n"),
+                SetForegroundColor(CColor::Magenta),
+                Print("  ╚══════════════════════════════════════════════╝\r\n"),
                 ResetColor,
                 Print("\r\n")
             )?;
-        }
 
-        // Footer
-        execute!(
-            stdout,
-            Print("\r\n"),
-            SetForegroundColor(CColor::DarkGrey),
-            Print("  ══════════════════════════════════════════════════════════\r\n"),
-            ResetColor,
-            Print("  "),
-            SetForegroundColor(CColor::Green),
-            Print("↑/↓"),
-            ResetColor,
-            Print(" Navigate  │  "),
-            SetForegroundColor(CColor::Green),
-            Print("Enter"),
-            ResetColor,
-            Print(" Select  │  "),
-            SetForegroundColor(CColor::Green),
-            Print("1-9,0,q"),
-            ResetColor,
-            Print(" Quick  │  "),
-            SetForegroundColor(CColor::Green),
-            Print("Esc"),
-            ResetColor,
-            Print(" Exit\r\n")
-        )?;
+            // Menu items with numbers and arrows
+            for (i, (key, label_key, desc_key)) in menu_items.iter().enumerate() {
+                let arrow = if i == selected { "  ▶ " } else { "    " };
+                let key_color = if i == selected { CColor::Green } else { CColor::Yellow };
+                let label_color = if i == selected { CColor::White } else { CColor::Grey };
+                let desc_color = CColor::DarkGrey;
+
+                execute!(
+                    stdout,
+                    Print(arrow),
+                    SetForegroundColor(key_color),
+                    Print(format!("[{}]", key)),
+                    ResetColor,
+                    Print(" "),
+                    SetForegroundColor(label_color),
+                    Print(t!(label_key)),
+                    ResetColor,
+                    SetForegroundColor(desc_color),
+                    Print(format!(" - {}", t!(desc_key))),
+                    ResetColor,
+                    Print("\r\n")
+                )?;
+            }
+
+            // Footer
+            execute!(
+                stdout,
+                Print("\r\n"),
+                SetForegroundColor(CColor::DarkGrey),
+                Print("  ══════════════════════════════════════════════════════════\r\n"),
+                ResetColor,
+                Print("  "),
+                SetForegroundColor(CColor::Green),
+                Print("↑/↓"),
+                ResetColor,
+                Print(" Navigate  │  "),
+                SetForegroundColor(CColor::Green),
+                Print("Enter"),
+                ResetColor,
+                Print(" Select  │  "),
+                SetForegroundColor(CColor::Green),
+                Print("1-9,0,q"),
+                ResetColor,
+                Print(" Quick  │  "),
+                SetForegroundColor(CColor::Green),
+                Print("Esc"),
+                ResetColor,
+                Print(" Exit\r\n")
+            )?;
+
+            needs_redraw = false;
+        }
 
         // Handle input - arrow keys, enter, and quick select
         if event::poll(std::time::Duration::from_millis(100))? {
@@ -798,11 +803,13 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
                     KeyCode::Up => {
                         if selected > 0 {
                             selected -= 1;
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Down => {
                         if selected < menu_items.len() - 1 {
                             selected += 1;
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Enter => {
@@ -823,6 +830,7 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
                         // Return to menu
                         enable_raw_mode()?;
                         execute!(stdout, EnterAlternateScreen, Hide)?;
+                        needs_redraw = true;
                     }
                     KeyCode::Esc => {
                         break;
@@ -846,6 +854,7 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
                             // Return to menu
                             enable_raw_mode()?;
                             execute!(stdout, EnterAlternateScreen, Hide)?;
+                            needs_redraw = true;
                         }
                     }
                     _ => {}
@@ -858,7 +867,7 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
     disable_raw_mode()?;
     execute!(stdout, LeaveAlternateScreen, Show)?;
 
-    print_info("Returned to command mode.");
+    print_info(&t!("menu-returned"));
     Ok(())
 }
 
@@ -1026,66 +1035,71 @@ fn run_submenu(title: &str, items: &[(&str, &str)], actions: &[Box<dyn Fn(&AppCo
     };
 
     let mut selected = 0;
+    let mut needs_redraw = true;
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, Hide)?;
 
     loop {
-        execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
+        if needs_redraw {
+            execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
 
-        // Header - use execute! for proper alignment
-        execute!(
-            stdout,
-            Print("\r\n"),
-            SetForegroundColor(CColor::Cyan),
-            Print(format!("  {} ", title)),
-            ResetColor,
-            Print("\r\n"),
-            Print("  ─────────────────────────────────────────────\r\n"),
-            Print("\r\n")
-        )?;
-
-        // Items - aligned with fixed-width label column
-        for (i, (label, desc)) in items.iter().enumerate() {
-            let arrow = if i == selected { "▶ " } else { "  " };
-            let label_color = if i == selected { CColor::Yellow } else { CColor::White };
-            let desc_color = CColor::DarkGrey;
-
+            // Header - use execute! for proper alignment
             execute!(
                 stdout,
-                Print(format!("  {} ", arrow)),
-                SetForegroundColor(label_color),
-                Print(format!("{:<12}", label)),  // Fixed 12-char width for alignment
+                Print("\r\n"),
+                SetForegroundColor(CColor::Cyan),
+                Print(format!("  {} ", title)),
                 ResetColor,
-                SetForegroundColor(desc_color),
-                Print(format!("  {}", desc)),
+                Print("\r\n"),
+                Print("  ─────────────────────────────────────────────\r\n"),
+                Print("\r\n")
+            )?;
+
+            // Items - aligned with fixed-width label column
+            for (i, (label, desc)) in items.iter().enumerate() {
+                let arrow = if i == selected { "▶ " } else { "  " };
+                let label_color = if i == selected { CColor::Yellow } else { CColor::White };
+                let desc_color = CColor::DarkGrey;
+
+                execute!(
+                    stdout,
+                    Print(format!("  {} ", arrow)),
+                    SetForegroundColor(label_color),
+                    Print(format!("{:<12}", label)),  // Fixed 12-char width for alignment
+                    ResetColor,
+                    SetForegroundColor(desc_color),
+                    Print(format!("  {}", desc)),
+                    ResetColor,
+                    Print("\r\n")
+                )?;
+            }
+
+            // Back option
+            execute!(stdout, Print("\r\n"))?;
+            let back_arrow = if selected == items.len() { "▶ " } else { "  " };
+            let back_style = if selected == items.len() { CColor::Yellow } else { CColor::Grey };
+            execute!(
+                stdout,
+                Print(format!("  {} ", back_arrow)),
+                SetForegroundColor(back_style),
+                Print("返回 Back"),
                 ResetColor,
                 Print("\r\n")
             )?;
+
+            // Footer
+            execute!(
+                stdout,
+                Print("\r\n"),
+                SetForegroundColor(CColor::DarkGrey),
+                Print("  ↑/↓ Navigate │ Enter Select │ Esc Back\r\n"),
+                ResetColor
+            )?;
+
+            needs_redraw = false;
         }
-
-        // Back option
-        execute!(stdout, Print("\r\n"))?;
-        let back_arrow = if selected == items.len() { "▶ " } else { "  " };
-        let back_style = if selected == items.len() { CColor::Yellow } else { CColor::Grey };
-        execute!(
-            stdout,
-            Print(format!("  {} ", back_arrow)),
-            SetForegroundColor(back_style),
-            Print("返回 Back"),
-            ResetColor,
-            Print("\r\n")
-        )?;
-
-        // Footer
-        execute!(
-            stdout,
-            Print("\r\n"),
-            SetForegroundColor(CColor::DarkGrey),
-            Print("  ↑/↓ Navigate │ Enter Select │ Esc Back\r\n"),
-            ResetColor
-        )?;
 
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
@@ -1093,11 +1107,13 @@ fn run_submenu(title: &str, items: &[(&str, &str)], actions: &[Box<dyn Fn(&AppCo
                     KeyCode::Up => {
                         if selected > 0 {
                             selected -= 1;
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Down => {
                         if selected < items.len() {
                             selected += 1;
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Enter => {
@@ -1113,6 +1129,7 @@ fn run_submenu(title: &str, items: &[(&str, &str)], actions: &[Box<dyn Fn(&AppCo
                             }
                             enable_raw_mode()?;
                             execute!(stdout, EnterAlternateScreen, Hide)?;
+                            needs_redraw = true;
                         } else {
                             break;
                         }
@@ -1170,81 +1187,86 @@ fn run_disk_picker(ctx: &AppContext) -> Result<Option<String>> {
     }).collect();
 
     let mut selected = 0;
+    let mut needs_redraw = true;
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, Hide)?;
 
     let result: Option<String> = loop {
-        execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
+        if needs_redraw {
+            execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
 
-        // Header
-        execute!(
-            stdout,
-            Print("\r\n"),
-            SetForegroundColor(CColor::Cyan),
-            Print("  选择硬盘 Select Disk"),
-            ResetColor,
-            Print("\r\n"),
-            Print("  ─────────────────────────────────────────────\r\n"),
-            Print("\r\n")
-        )?;
-
-        // Disk list
-        for (i, (disk, mounted, mount)) in disk_info.iter().enumerate() {
-            let arrow = if i == selected { "▶ " } else { "  " };
-            let status_icon = if *mounted { "●" } else { "○" };
-            let status_color = if *mounted { CColor::Green } else { CColor::Red };
-            let name_color = if i == selected { CColor::Yellow } else { CColor::White };
-
+            // Header
             execute!(
                 stdout,
-                Print(format!("  {} ", arrow)),
-                SetForegroundColor(status_color),
-                Print(status_icon),
+                Print("\r\n"),
+                SetForegroundColor(CColor::Cyan),
+                Print("  选择硬盘 Select Disk"),
                 ResetColor,
-                Print(" "),
-                SetForegroundColor(name_color),
-                Print(&disk.name),
+                Print("\r\n"),
+                Print("  ─────────────────────────────────────────────\r\n"),
+                Print("\r\n")
+            )?;
+
+            // Disk list
+            for (i, (disk, mounted, mount)) in disk_info.iter().enumerate() {
+                let arrow = if i == selected { "▶ " } else { "  " };
+                let status_icon = if *mounted { "●" } else { "○" };
+                let status_color = if *mounted { CColor::Green } else { CColor::Red };
+                let name_color = if i == selected { CColor::Yellow } else { CColor::White };
+
+                execute!(
+                    stdout,
+                    Print(format!("  {} ", arrow)),
+                    SetForegroundColor(status_color),
+                    Print(status_icon),
+                    ResetColor,
+                    Print(" "),
+                    SetForegroundColor(name_color),
+                    Print(&disk.name),
+                    ResetColor,
+                    SetForegroundColor(CColor::DarkGrey),
+                    Print(format!(" [{}]", disk.disk_id.as_str())),
+                    ResetColor
+                )?;
+
+                if let Some(m) = mount {
+                    execute!(
+                        stdout,
+                        SetForegroundColor(CColor::Green),
+                        Print(format!(" ({})", m)),
+                        ResetColor
+                    )?;
+                }
+
+                execute!(stdout, Print("\r\n"))?;
+            }
+
+            // Back option
+            execute!(stdout, Print("\r\n"))?;
+            let back_arrow = if selected == disk_info.len() { "▶ " } else { "  " };
+            let back_style = if selected == disk_info.len() { CColor::Yellow } else { CColor::Grey };
+            execute!(
+                stdout,
+                Print(format!("  {} ", back_arrow)),
+                SetForegroundColor(back_style),
+                Print("返回 Back"),
                 ResetColor,
+                Print("\r\n")
+            )?;
+
+            // Footer
+            execute!(
+                stdout,
+                Print("\r\n"),
                 SetForegroundColor(CColor::DarkGrey),
-                Print(format!(" [{}]", disk.disk_id.as_str())),
+                Print("  ↑/↓ Navigate │ Enter Select │ Esc Back\r\n"),
                 ResetColor
             )?;
 
-            if let Some(m) = mount {
-                execute!(
-                    stdout,
-                    SetForegroundColor(CColor::Green),
-                    Print(format!(" ({})", m)),
-                    ResetColor
-                )?;
-            }
-
-            execute!(stdout, Print("\r\n"))?;
+            needs_redraw = false;
         }
-
-        // Back option
-        execute!(stdout, Print("\r\n"))?;
-        let back_arrow = if selected == disk_info.len() { "▶ " } else { "  " };
-        let back_style = if selected == disk_info.len() { CColor::Yellow } else { CColor::Grey };
-        execute!(
-            stdout,
-            Print(format!("  {} ", back_arrow)),
-            SetForegroundColor(back_style),
-            Print("返回 Back"),
-            ResetColor,
-            Print("\r\n")
-        )?;
-
-        // Footer
-        execute!(
-            stdout,
-            Print("\r\n"),
-            SetForegroundColor(CColor::DarkGrey),
-            Print("  ↑/↓ Navigate │ Enter Select │ Esc Back\r\n"),
-            ResetColor
-        )?;
 
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
@@ -1252,11 +1274,13 @@ fn run_disk_picker(ctx: &AppContext) -> Result<Option<String>> {
                     KeyCode::Up => {
                         if selected > 0 {
                             selected -= 1;
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Down => {
                         if selected < disk_info.len() {
                             selected += 1;
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Enter => {
@@ -1311,80 +1335,101 @@ fn run_settings_menu(ctx: &AppContext) -> Result<()> {
 
     let mut selected = 0;
     let mut hash_enabled = is_hash_enabled(ctx);
+    let current_lang = crate::i18n::current_language();
+    let mut lang_index = crate::i18n::SUPPORTED_LANGUAGES.iter()
+        .position(|(code, _)| *code == current_lang)
+        .unwrap_or(0);
+    let mut needs_redraw = true;
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, Hide)?;
 
     loop {
-        execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
+        if needs_redraw {
+            execute!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
 
-        // Header - use execute! for proper alignment
-        execute!(
-            stdout,
-            Print("\r\n"),
-            SetForegroundColor(CColor::Cyan),
-            Print("  设置 Settings"),
-            ResetColor,
-            Print("\r\n"),
-            Print("  ─────────────────────────────────────────────\r\n"),
-            Print("\r\n")
-        )?;
+            // Header
+            execute!(
+                stdout,
+                Print("\r\n"),
+                SetForegroundColor(CColor::Cyan),
+                Print(format!("  {}", t!("submenu-settings-title"))),
+                ResetColor,
+                Print("\r\n"),
+                Print("  ─────────────────────────────────────────────\r\n"),
+                Print("\r\n")
+            )?;
 
-        // Hash verification option
-        let hash_status = if hash_enabled { "开启 ON" } else { "关闭 OFF" };
-        let hash_color = if hash_enabled { CColor::Green } else { CColor::Red };
-        let arrow = if selected == 0 { "▶ " } else { "  " };
+            // Language option (index 0)
+            let (_, lang_name) = crate::i18n::SUPPORTED_LANGUAGES[lang_index];
+            let arrow = if selected == 0 { "▶ " } else { "  " };
+            execute!(
+                stdout,
+                Print(format!("  {} ", arrow)),
+                Print(format!("{}: ", t!("submenu-settings-lang"))),
+                SetForegroundColor(CColor::Green),
+                Print(lang_name),
+                ResetColor,
+                Print("\r\n")
+            )?;
+            execute!(
+                stdout,
+                Print("      "),
+                SetForegroundColor(CColor::DarkGrey),
+                Print(t!("submenu-settings-lang-desc")),
+                ResetColor,
+                Print("\r\n")
+            )?;
+            execute!(stdout, Print("\r\n"))?;
 
-        execute!(
-            stdout,
-            Print(format!("  {} ", arrow)),
-            Print("哈希校验 Hash Verification: "),
-            SetForegroundColor(hash_color),
-            Print(hash_status),
-            ResetColor,
-            Print("\r\n")
-        )?;
+            // Hash verification option (index 1)
+            let hash_status = if hash_enabled { t!("submenu-settings-hash-on") } else { t!("submenu-settings-hash-off") };
+            let hash_color = if hash_enabled { CColor::Green } else { CColor::Red };
+            let arrow = if selected == 1 { "▶ " } else { "  " };
 
-        // Description
-        execute!(
-            stdout,
-            Print("      "),
-            SetForegroundColor(CColor::DarkGrey),
-            Print("开启后，扫描和存储时会计算文件哈希值用于校验"),
-            ResetColor,
-            Print("\r\n")
-        )?;
-        execute!(
-            stdout,
-            Print("      "),
-            SetForegroundColor(CColor::DarkGrey),
-            Print("When enabled, file hashes are calculated during scan/store"),
-            ResetColor,
-            Print("\r\n")
-        )?;
+            execute!(
+                stdout,
+                Print(format!("  {} ", arrow)),
+                Print(format!("{}: ", t!("submenu-settings-hash"))),
+                SetForegroundColor(hash_color),
+                Print(hash_status),
+                ResetColor,
+                Print("\r\n")
+            )?;
+            execute!(
+                stdout,
+                Print("      "),
+                SetForegroundColor(CColor::DarkGrey),
+                Print(t!("submenu-settings-hash-desc")),
+                ResetColor,
+                Print("\r\n")
+            )?;
 
-        // Back option
-        execute!(stdout, Print("\r\n"))?;
-        let back_arrow = if selected == 1 { "▶ " } else { "  " };
-        let back_style = if selected == 1 { CColor::Yellow } else { CColor::Grey };
-        execute!(
-            stdout,
-            Print(format!("  {} ", back_arrow)),
-            SetForegroundColor(back_style),
-            Print("返回 Back"),
-            ResetColor,
-            Print("\r\n")
-        )?;
+            // Back option (index 2)
+            execute!(stdout, Print("\r\n"))?;
+            let back_arrow = if selected == 2 { "▶ " } else { "  " };
+            let back_style = if selected == 2 { CColor::Yellow } else { CColor::Grey };
+            execute!(
+                stdout,
+                Print(format!("  {} ", back_arrow)),
+                SetForegroundColor(back_style),
+                Print(t!("menu-back")),
+                ResetColor,
+                Print("\r\n")
+            )?;
 
-        // Footer
-        execute!(
-            stdout,
-            Print("\r\n"),
-            SetForegroundColor(CColor::DarkGrey),
-            Print("  ↑/↓ Navigate │ Enter Toggle │ Esc Back\r\n"),
-            ResetColor
-        )?;
+            // Footer
+            execute!(
+                stdout,
+                Print("\r\n"),
+                SetForegroundColor(CColor::DarkGrey),
+                Print("  ↑/↓ Navigate │ Enter/L/R Toggle │ Esc Back\r\n"),
+                ResetColor
+            )?;
+
+            needs_redraw = false;
+        }
 
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
@@ -1392,21 +1437,49 @@ fn run_settings_menu(ctx: &AppContext) -> Result<()> {
                     KeyCode::Up => {
                         if selected > 0 {
                             selected -= 1;
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Down => {
-                        if selected < 1 {
+                        if selected < 2 {
                             selected += 1;
+                            needs_redraw = true;
+                        }
+                    }
+                    KeyCode::Left | KeyCode::Right => {
+                        if selected == 0 {
+                            // Cycle language
+                            if key.code == KeyCode::Right {
+                                lang_index = (lang_index + 1) % crate::i18n::SUPPORTED_LANGUAGES.len();
+                            } else {
+                                lang_index = if lang_index == 0 { crate::i18n::SUPPORTED_LANGUAGES.len() - 1 } else { lang_index - 1 };
+                            }
+                            let (new_code, _) = crate::i18n::SUPPORTED_LANGUAGES[lang_index];
+                            let _ = crate::i18n::set_language(new_code);
+                            // Save to config
+                            let config = ctx.config();
+                            let db = ctx.db();
+                            let _ = config.set_value("language", new_code, db);
+                            needs_redraw = true;
                         }
                     }
                     KeyCode::Enter => {
                         if selected == 0 {
+                            // Cycle language
+                            lang_index = (lang_index + 1) % crate::i18n::SUPPORTED_LANGUAGES.len();
+                            let (new_code, _) = crate::i18n::SUPPORTED_LANGUAGES[lang_index];
+                            let _ = crate::i18n::set_language(new_code);
+                            // Save to config
+                            let config = ctx.config();
+                            let db = ctx.db();
+                            let _ = config.set_value("language", new_code, db);
+                            needs_redraw = true;
+                        } else if selected == 1 {
                             hash_enabled = !hash_enabled;
-                            // Handle errors gracefully
                             if let Err(e) = set_hash_enabled(ctx, hash_enabled) {
-                                // Just show error but don't exit - user can try again
                                 eprintln!("Failed to save setting: {}", e);
                             }
+                            needs_redraw = true;
                         } else {
                             break;
                         }
@@ -1423,4 +1496,5 @@ fn run_settings_menu(ctx: &AppContext) -> Result<()> {
     disable_raw_mode()?;
     execute!(stdout, LeaveAlternateScreen, Show)?;
 
-    Ok(())}
+    Ok(())
+}

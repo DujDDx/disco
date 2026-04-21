@@ -16,8 +16,10 @@ pub fn split_into_atomic_units(
     // Single file case
     if root_path.is_file() {
         let size = root_path.metadata()?.len();
+        let name = root_path.file_name().unwrap().to_string_lossy().to_string();
         return Ok(vec![
-            AtomicUnit::new(root_path.to_string_lossy().to_string(), root_path.file_name().unwrap().to_string_lossy().to_string())
+            AtomicUnit::new(root_path.to_string_lossy().to_string(), name.clone())
+                .with_relative_path(name)
                 .with_size(size, 1)
                 .with_depth(0)
         ]);
@@ -29,16 +31,23 @@ pub fn split_into_atomic_units(
     // If solid_layer = 0, entire directory is one unit
     if solid_layer == SolidLayerDepth::Zero {
         let (size, file_count) = calculate_dir_stats(root_path)?;
+        let name = root_path.file_name().unwrap().to_string_lossy().to_string();
         return Ok(vec![
-            AtomicUnit::new(root_path.to_string_lossy().to_string(), root_path.file_name().unwrap().to_string_lossy().to_string())
+            AtomicUnit::new(root_path.to_string_lossy().to_string(), name.clone())
+                .with_relative_path(name)
                 .with_size(size, file_count)
                 .with_depth(0)
         ]);
     }
 
     // Otherwise, split based on depth
+    // Use parent directory as input_root to preserve folder name in relative_path
+    let input_root = root_path.parent()
+        .ok_or_else(|| crate::DiscoError::InvalidPath("Cannot determine parent directory".to_string()))?;
+
     split_recursive(
         root_path,
+        input_root, // Use parent so folder name is preserved in relative_path
         0,
         solid_layer.min_depth(),
         solid_checker,
@@ -51,6 +60,7 @@ pub fn split_into_atomic_units(
 
 fn split_recursive(
     dir: &Path,
+    input_root: &Path,
     current_depth: u32,
     target_depth: u32,
     solid_checker: Option<&dyn SolidChecker>,
@@ -61,6 +71,12 @@ fn split_recursive(
         let path = entry.path();
         let name = path.file_name().unwrap().to_string_lossy().to_string();
 
+        // Calculate relative path from input root
+        let relative_path = path.strip_prefix(input_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+
         // Check if this entry is marked as Solid
         let is_solid = solid_checker.map_or(false, |checker| checker.is_solid(path, disk_id.unwrap()));
 
@@ -69,6 +85,7 @@ fn split_recursive(
             let size = path.metadata()?.len();
             units.push(
                 AtomicUnit::new(path.to_string_lossy().to_string(), name)
+                    .with_relative_path(relative_path)
                     .with_size(size, 1)
                     .with_depth(current_depth + 1)
                     .mark_solid()
@@ -78,6 +95,7 @@ fn split_recursive(
             let (size, file_count) = calculate_dir_stats(path)?;
             units.push(
                 AtomicUnit::new(path.to_string_lossy().to_string(), name)
+                    .with_relative_path(relative_path)
                     .with_size(size, file_count)
                     .with_depth(current_depth + 1)
                     .mark_solid()
@@ -87,12 +105,13 @@ fn split_recursive(
             let (size, file_count) = calculate_dir_stats(path)?;
             units.push(
                 AtomicUnit::new(path.to_string_lossy().to_string(), name)
+                    .with_relative_path(relative_path)
                     .with_size(size, file_count)
                     .with_depth(current_depth + 1)
             );
         } else {
             // Continue recursion
-            split_recursive(path, current_depth + 1, target_depth, solid_checker, disk_id, units)?;
+            split_recursive(path, input_root, current_depth + 1, target_depth, solid_checker, disk_id, units)?;
         }
     }
 
@@ -136,6 +155,7 @@ mod tests {
         assert_eq!(units.len(), 1);
         assert_eq!(units[0].size, 5);
         assert_eq!(units[0].file_count, 1);
+        assert_eq!(units[0].relative_path, "test.txt");
     }
 
     #[test]
@@ -161,5 +181,39 @@ mod tests {
         let checker = NoSolidChecker;
         let units = split_into_atomic_units(temp.path(), SolidLayerDepth::One, Some(&checker), Some(&DiskId::new("test"))).unwrap();
         assert_eq!(units.len(), 2); // Two subdirectories as separate units
+    }
+
+    #[test]
+    fn test_split_infinite_preserves_paths() {
+        let temp = TempDir::new().unwrap();
+        // Create structure: root/sub1/a.txt, root/sub2/b.txt
+        fs::create_dir(temp.path().join("sub1")).unwrap();
+        fs::create_dir(temp.path().join("sub2")).unwrap();
+        File::create(temp.path().join("sub1/a.txt")).unwrap().write_all(b"aaa").unwrap();
+        File::create(temp.path().join("sub2/b.txt")).unwrap().write_all(b"bb").unwrap();
+
+        let units = split_into_atomic_units(temp.path(), SolidLayerDepth::Infinite, None, None).unwrap();
+        assert_eq!(units.len(), 2); // Two files
+
+        // Check that relative paths preserve directory structure AND folder name
+        let folder_name = temp.path().file_name().unwrap().to_string_lossy().to_string();
+        let relative_paths: Vec<&str> = units.iter().map(|u| u.relative_path.as_str()).collect();
+        assert!(relative_paths.contains(&format!("{}/sub1/a.txt", folder_name).as_str()), "Should contain '{folder_name}/sub1/a.txt'");
+        assert!(relative_paths.contains(&format!("{}/sub2/b.txt", folder_name).as_str()), "Should contain '{folder_name}/sub2/b.txt'");
+    }
+
+    #[test]
+    fn test_split_nested_infinite() {
+        let temp = TempDir::new().unwrap();
+        // Create structure: root/dir1/dir2/file.txt
+        fs::create_dir_all(temp.path().join("dir1/dir2")).unwrap();
+        File::create(temp.path().join("dir1/dir2/file.txt")).unwrap().write_all(b"content").unwrap();
+
+        let units = split_into_atomic_units(temp.path(), SolidLayerDepth::Infinite, None, None).unwrap();
+        assert_eq!(units.len(), 1);
+
+        // Check that relative path preserves folder name
+        let folder_name = temp.path().file_name().unwrap().to_string_lossy().to_string();
+        assert_eq!(units[0].relative_path, format!("{}/dir1/dir2/file.txt", folder_name));
     }
 }

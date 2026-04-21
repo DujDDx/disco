@@ -164,9 +164,16 @@ pub fn handle_store_with_ctx(ctx: &AppContext, paths: Vec<String>, solid_layer: 
     let mut total_files = 0usize;
 
     for item in &plan {
+        // Show relative_path (which preserves directory structure)
+        // If relative_path is same as name, just show name; otherwise show full relative path
+        let display_path = if item.unit.relative_path == item.unit.name {
+            item.unit.name.clone()
+        } else {
+            item.unit.relative_path.clone()
+        };
         println!("  {} → {} [{}]",
-            item.unit.name,
-            item.target_disk_name,
+            display_path.cyan(),
+            item.target_disk_name.green(),
             format_size(item.unit.size)
         );
         total_size += item.unit.size;
@@ -204,8 +211,8 @@ pub fn handle_store_with_ctx(ctx: &AppContext, paths: Vec<String>, solid_layer: 
     let mut copied_size = 0u64;
     let mut failed_count = 0usize;
 
-    // Track copied paths for indexing
-    let mut copied_paths: Vec<(String, std::path::PathBuf)> = Vec::new();
+    // Track copied paths for indexing: (disk_id, dest_path, relative_path)
+    let mut copied_paths: Vec<(String, std::path::PathBuf, String)> = Vec::new();
 
     for item in &plan {
         let disk = mounted_disks.iter()
@@ -232,8 +239,8 @@ pub fn handle_store_with_ctx(ctx: &AppContext, paths: Vec<String>, solid_layer: 
                 println!("    {}", "✓ Copied successfully".green());
                 copied_files += item.unit.file_count;
                 copied_size += size;
-                // Track for indexing
-                copied_paths.push((disk.disk_id.as_str().to_string(), dest_path.clone()));
+                // Track for indexing with relative_path preserved
+                copied_paths.push((disk.disk_id.as_str().to_string(), dest_path.clone(), item.unit.relative_path.clone()));
             }
             Err(e) => {
                 println!("    {} Failed: {}", "✗".red(), e);
@@ -262,7 +269,74 @@ pub fn handle_store_with_ctx(ctx: &AppContext, paths: Vec<String>, solid_layer: 
 
         let mut total_indexed = 0usize;
 
-        for (disk_id, dest_path) in &copied_paths {
+        // First, create parent directory entries for scattered files
+        // This ensures the directory structure is indexed even when files are scattered across disks
+        let mut dir_entries_by_disk: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
+
+        for (disk_id, _dest_path, relative_path) in &copied_paths {
+            // Extract all parent directories from the relative path
+            let parent_dirs = extract_parent_directories(relative_path);
+            for dir_path in parent_dirs {
+                dir_entries_by_disk
+                    .entry(disk_id.clone())
+                    .or_insert_with(std::collections::HashSet::new)
+                    .insert(dir_path);
+            }
+        }
+
+        // Create directory index entries
+        for (disk_id, dir_paths) in &dir_entries_by_disk {
+            // Find the disk
+            let disk = mounted_disks.iter()
+                .find(|d| d.disk_id.as_str() == disk_id);
+
+            if let Some(disk) = disk {
+                if let Some(mount) = &disk.current_mount_point {
+                    let mount_path = std::path::Path::new(mount);
+
+                    for dir_relative_path in dir_paths {
+                        // Check if directory entry already exists
+                        let existing = entry_repo.get_entries_by_disk(&disk.disk_id)
+                            .map(|entries| entries.iter().any(|e| e.relative_path == *dir_relative_path))
+                            .unwrap_or(false);
+
+                        if !existing {
+                            // Create directory index entry
+                            let dir_name = std::path::Path::new(dir_relative_path)
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or(dir_relative_path)
+                                .to_string();
+
+                            let dir_entry = crate::domain::entry::IndexEntry {
+                                entry_id: 0,
+                                disk_id: disk.disk_id.clone(),
+                                disk_name: disk.name.clone(),
+                                relative_path: dir_relative_path.clone(),
+                                file_name: dir_name,
+                                size: 0,
+                                hash: None,
+                                mtime: chrono::Utc::now(),
+                                entry_type: crate::domain::entry::EntryType::Dir,
+                                solid_flag: false,
+                                last_seen_mount_point: mount_path.to_string_lossy().to_string(),
+                                indexed_at: chrono::Utc::now(),
+                                status: crate::domain::entry::EntryStatus::Normal,
+                            };
+
+                            match entry_repo.upsert_entry(&dir_entry) {
+                                Ok(_) => total_indexed += 1,
+                                Err(e) => println!("    {} Failed to index directory {}: {}",
+                                    "✗".red(), dir_relative_path, e),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Now index the actual files
+        for (disk_id, dest_path, _relative_path) in &copied_paths {
             // Find the disk
             let disk = mounted_disks.iter()
                 .find(|d| d.disk_id.as_str() == disk_id);
@@ -305,6 +379,35 @@ pub fn handle_store_with_ctx(ctx: &AppContext, paths: Vec<String>, solid_layer: 
     }
 
     Ok(())
+}
+
+/// Extract all parent directory paths from a relative path
+/// e.g., "MyFolder/sub1/a.txt" -> ["MyFolder", "MyFolder/sub1"]
+fn extract_parent_directories(relative_path: &str) -> Vec<String> {
+    let path = std::path::Path::new(relative_path);
+    let mut parents = Vec::new();
+    let mut current = String::new();
+
+    for component in path.components() {
+        if let std::path::Component::Normal(os_str) = component {
+            if let Some(name) = os_str.to_str() {
+                if !current.is_empty() {
+                    current.push('/');
+                }
+                current.push_str(name);
+                // Only add if this is not the last component (which is the file itself)
+                // We check by seeing if there are more components after this one
+                parents.push(current.clone());
+            }
+        }
+    }
+
+    // Remove the last entry as it's the file itself, not a directory
+    if !parents.is_empty() {
+        parents.pop();
+    }
+
+    parents
 }
 
 /// Copy a file with progress bar

@@ -75,8 +75,8 @@ impl DiskSelectionStrategy for BestFitStrategy {
                 })
                 .unwrap();
 
-            // Create plan item
-            let target_relative_path = unit.name.clone();
+            // Create plan item - use relative_path to preserve directory structure
+            let target_relative_path = unit.relative_path.clone();
             plan_items.push(PlanItem {
                 unit,
                 target_disk: best_disk.disk_id.clone(),
@@ -116,6 +116,12 @@ mod tests {
         }
     }
 
+    fn create_test_unit(path: &str, name: &str, size: u64) -> AtomicUnit {
+        AtomicUnit::new(path, name)
+            .with_relative_path(name)
+            .with_size(size, 1)
+    }
+
     #[test]
     fn test_best_fit_simple() {
         let strategy = BestFitStrategy::new();
@@ -125,8 +131,8 @@ mod tests {
         ];
 
         let units = vec![
-            AtomicUnit::new("/src/a", "a").with_size(50, 1),
-            AtomicUnit::new("/src/b", "b").with_size(80, 1),
+            create_test_unit("/src/a", "a", 50),
+            create_test_unit("/src/b", "b", 80),
         ];
 
         let disk_space: HashMap<String, u64> = vec![
@@ -142,10 +148,26 @@ mod tests {
     fn test_best_fit_no_space() {
         let strategy = BestFitStrategy::new();
         let disks = vec![create_test_disk("d1", "Disk1", 100)];
-        let units = vec![AtomicUnit::new("/src/a", "a").with_size(200, 1)];
+        let units = vec![create_test_unit("/src/a", "a", 200)];
         let disk_space: HashMap<String, u64> = vec![("d1".to_string(), 100u64)].into_iter().collect();
 
         let result = strategy.assign(units, &disks, disk_space);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_best_fit_preserves_relative_path() {
+        let strategy = BestFitStrategy::new();
+        let disks = vec![create_test_disk("d1", "Disk1", 1000)];
+
+        let mut unit = AtomicUnit::new("/src/dir/file.txt", "file.txt")
+            .with_size(100, 1);
+        unit.relative_path = "dir/file.txt".to_string();
+
+        let units = vec![unit];
+        let disk_space: HashMap<String, u64> = vec![("d1".to_string(), 1000u64)].into_iter().collect();
+
+        let items = strategy.assign(units, &disks, disk_space).unwrap();
+        assert_eq!(items[0].target_relative_path, "dir/file.txt");
     }
 }

@@ -83,13 +83,14 @@ impl<'a> EntryRepo<'a> {
         Ok(ids)
     }
 
-    /// Search entries by file name (SQL LIKE)
+    /// Search entries by file name or path (SQL LIKE)
+    /// Matches both file_name and relative_path to support folder name search
     pub fn search_by_name(&self, keyword: &str, limit: usize) -> Result<Vec<IndexEntry>> {
         let mut entries = Vec::new();
         let mut stmt = self.db.conn().prepare(
             "SELECT entry_id, disk_id, disk_name, relative_path, file_name, size, hash, mtime, entry_type, solid_flag, last_seen_mount_point, indexed_at, status
              FROM entries
-             WHERE lower(file_name) LIKE lower(?1)
+             WHERE lower(file_name) LIKE lower(?1) OR lower(relative_path) LIKE lower(?1)
              ORDER BY indexed_at DESC
              LIMIT ?2",
         )?;

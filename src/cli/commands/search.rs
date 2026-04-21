@@ -84,16 +84,17 @@ pub fn handle_search_with_ctx(ctx: &AppContext, keyword: String, min_size: Optio
         let is_mounted = mounted_disks.contains(entry.disk_id.as_str());
         let status = format_mount_status(is_mounted);
 
-        // Truncate name if too long
-        let name = if entry.file_name.len() > 28 {
-            format!("{}...", &entry.file_name[..25])
+        // Truncate name if too long (using character count, not bytes)
+        let name = if entry.file_name.chars().count() > 28 {
+            format!("{}...", entry.file_name.chars().take(25).collect::<String>())
         } else {
             entry.file_name.clone()
         };
 
-        // Truncate path if too long
-        let path = if entry.relative_path.len() > 40 {
-            format!("...{}", &entry.relative_path[entry.relative_path.len().saturating_sub(37)..])
+        // Truncate path if too long (using character count, not bytes)
+        let path = if entry.relative_path.chars().count() > 40 {
+            let chars: Vec<char> = entry.relative_path.chars().collect();
+            format!("...{}", chars[chars.len().saturating_sub(37)..].iter().collect::<String>())
         } else {
             entry.relative_path.clone()
         };
