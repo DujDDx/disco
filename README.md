@@ -68,6 +68,38 @@ For other options:
 .\install.ps1 -Uninstall
 ```
 
+### One-line Install (Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install-linux.sh | sh
+```
+
+This script will:
+- Detect Linux distribution and architecture
+- Install build dependencies (gcc, make, git, curl)
+- Install Rust via rustup if not present
+- Compile and install Disco
+- Add to PATH automatically
+
+Supported distributions:
+- Debian/Ubuntu (apt)
+- Fedora/RHEL/CentOS (dnf/yum)
+- Arch Linux (pacman)
+- openSUSE (zypper)
+- Alpine (apk)
+
+For other options:
+```bash
+# Show help
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install-linux.sh | sh -s -- --help
+
+# Custom install path
+./install-linux.sh --prefix /usr/local/bin
+
+# Uninstall
+./install-linux.sh --uninstall
+```
+
 ### From Source
 
 ```bash
@@ -233,6 +265,14 @@ curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install.sh | sh
 ```powershell
 irm https://raw.githubusercontent.com/Dujddx/disco/main/install.ps1 | iex
 ```
+
+### 一键安装 (Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install-linux.sh | sh
+```
+
+支持的发行版：Debian/Ubuntu、Fedora/RHEL、Arch Linux、openSUSE、Alpine
 
 ### 从源码编译
 
