@@ -4,3 +4,4 @@ pub mod commands;
 pub mod context;
 pub mod display;
 pub mod interactive;
+pub mod interruptible;
