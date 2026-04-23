@@ -44,6 +44,30 @@ curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install.sh | sh -
 curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install.sh | sh -s -- --uninstall
 ```
 
+### One-line Install (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/Dujddx/disco/main/install.ps1 | iex
+```
+
+This script will:
+- Detect Windows x64
+- Install Rust via rustup if not present
+- Compile and install Disco
+- Add to PATH automatically
+
+For other options:
+```powershell
+# Show help
+.\install.ps1 -Help
+
+# Custom install path
+.\install.ps1 -Prefix "C:\Tools\Disco"
+
+# Uninstall
+.\install.ps1 -Uninstall
+```
+
 ### From Source
 
 ```bash
@@ -197,6 +221,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **多语言支持** - 支持英文和简体中文
 
 ## 安装
+
+### 一键安装 (Apple Silicon Mac)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install.sh | sh
+```
+
+### 一键安装 (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/Dujddx/disco/main/install.ps1 | iex
+```
+
+### 从源码编译
 
 ```bash
 cargo build --release
