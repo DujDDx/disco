@@ -44,6 +44,62 @@ curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install.sh | sh -
 curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install.sh | sh -s -- --uninstall
 ```
 
+### One-line Install (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/Dujddx/disco/main/install.ps1 | iex
+```
+
+This script will:
+- Detect Windows x64
+- Install Rust via rustup if not present
+- Compile and install Disco
+- Add to PATH automatically
+
+For other options:
+```powershell
+# Show help
+.\install.ps1 -Help
+
+# Custom install path
+.\install.ps1 -Prefix "C:\Tools\Disco"
+
+# Uninstall
+.\install.ps1 -Uninstall
+```
+
+### One-line Install (Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install-linux.sh | sh
+```
+
+This script will:
+- Detect Linux distribution and architecture
+- Install build dependencies (gcc, make, git, curl)
+- Install Rust via rustup if not present
+- Compile and install Disco
+- Add to PATH automatically
+
+Supported distributions:
+- Debian/Ubuntu (apt)
+- Fedora/RHEL/CentOS (dnf/yum)
+- Arch Linux (pacman)
+- openSUSE (zypper)
+- Alpine (apk)
+
+For other options:
+```bash
+# Show help
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install-linux.sh | sh -s -- --help
+
+# Custom install path
+./install-linux.sh --prefix /usr/local/bin
+
+# Uninstall
+./install-linux.sh --uninstall
+```
+
 ### From Source
 
 ```bash
@@ -197,6 +253,28 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **多语言支持** - 支持英文和简体中文
 
 ## 安装
+
+### 一键安装 (Apple Silicon Mac)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install.sh | sh
+```
+
+### 一键安装 (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/Dujddx/disco/main/install.ps1 | iex
+```
+
+### 一键安装 (Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dujddx/disco/main/install-linux.sh | sh
+```
+
+支持的发行版：Debian/Ubuntu、Fedora/RHEL、Arch Linux、openSUSE、Alpine
+
+### 从源码编译
 
 ```bash
 cargo build --release
