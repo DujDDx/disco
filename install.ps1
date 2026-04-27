@@ -218,19 +218,32 @@ function Install-Disco {
         Push-Location $tempDir
         
         Write-Info "Building release version (this may take a few minutes)..."
+
         if ($Verbose) {
             & cargo build --release
+            $buildExitCode = $LASTEXITCODE
         } else {
-            & cargo build --release 2>&1 | Out-Null
+            $buildOutput = & cargo build --release 2>&1
+            $buildExitCode = $LASTEXITCODE
         }
-        
-        $binaryPath = Join-Path $tempDir "target\release\$BinaryName"
-        
-        if (-not (Test-Path $binaryPath)) {
-            Write-Error "Build failed: binary not found"
+
+        if ($buildExitCode -ne 0) {
+            Write-Error "Build failed with exit code: $buildExitCode"
+            if (-not $Verbose) {
+                Write-Info "Build output:"
+                Write-Host $buildOutput
+            }
             exit 1
         }
-        
+
+        $binaryPath = Join-Path $tempDir "target\release\$BinaryName"
+
+        if (-not (Test-Path $binaryPath)) {
+            Write-Error "Build failed: binary not found at $binaryPath"
+            Write-Warning "This may indicate a build configuration issue"
+            exit 1
+        }
+
         Write-Success "Build completed"
         
         # Install
