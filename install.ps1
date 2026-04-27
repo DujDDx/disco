@@ -241,7 +241,7 @@ function Install-VSBuildTools {
         )
 
         Write-Info "Running: winget $($installArgs -join ' ')"
-        & winget install Microsoft.VisualStudio.2022.BuildTools --override '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+        & winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Visual Studio Build Tools installed successfully"
