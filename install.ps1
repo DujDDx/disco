@@ -151,6 +151,127 @@ function Check-Rust {
 }
 
 # ============================================================================
+# VS Build Tools Check
+# ============================================================================
+
+function Check-VSBuildTools {
+    Write-Info "Checking Visual Studio Build Tools..."
+
+    # Method 1: Check using vswhere.exe
+    $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vsWhere) {
+        $vsPath = & $vsWhere -latest -property installationPath 2>$null
+        if ($vsPath) {
+            Write-Success "Visual Studio found: $vsPath"
+            return $true
+        }
+    }
+
+    # Method 2: Check for MSVC link.exe in common paths
+    $programFilesX86 = ${env:ProgramFiles(x86)}
+    $vcvarsallPaths = @(
+        "$programFilesX86\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+        "$programFilesX86\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
+        "$programFilesX86\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat"
+        "$programFilesX86\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat"
+        "$programFilesX86\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+        "$programFilesX86\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat"
+        "$programFilesX86\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat"
+        "$programFilesX86\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat"
+    )
+
+    foreach ($path in $vcvarsallPaths) {
+        if (Test-Path $path) {
+            Write-Success "Visual Studio Build Tools found: $path"
+            return $true
+        }
+    }
+
+    # Method 3: Check registry for VS Build Tools
+    $regPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\VisualStudio\17.0\VC",
+        "HKLM:\SOFTWARE\Microsoft\VisualStudio\16.0\VC",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\17.0\VC",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\16.0\VC"
+    )
+
+    foreach ($regPath in $regPaths) {
+        if (Test-Path $regPath) {
+            Write-Success "Visual Studio found in registry"
+            return $true
+        }
+    }
+
+    # Not found - prompt user for installation
+    Write-Warning "Visual Studio Build Tools not found"
+    Write-Warning "Rust MSVC toolchain requires Visual Studio Build Tools with C++ workload"
+    Write-Host ""
+    Write-Host "Without VS Build Tools, you may encounter errors like:" -ForegroundColor Yellow
+    Write-Host "  'link.exe failed with exit code: 1'" -ForegroundColor Gray
+    Write-Host "  "'link --help' for more information (wrong link command)'" -ForegroundColor Gray
+    Write-Host ""
+
+    $response = Read-Host "Do you want to install Visual Studio Build Tools? (Y/n)"
+
+    if ($response -eq "" -or $response -eq "Y" -or $response -eq "y") {
+        Install-VSBuildTools
+        return $true
+    } else {
+        Write-Warning "Skipping VS Build Tools installation"
+        Write-Warning "Build may fail if you don't have MSVC linker"
+        Write-Host ""
+        Write-Host "You can install it manually later with:" -ForegroundColor Yellow
+        Write-Host "  winget install Microsoft.VisualStudio.2022.BuildTools --override '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'" -ForegroundColor Cyan
+        Write-Host ""
+        return $false
+    }
+}
+
+function Install-VSBuildTools {
+    Write-Info "Installing Visual Studio Build Tools..."
+
+    # Check if winget is available
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        Write-Error "winget is not available"
+        Write-Info "Please install Visual Studio Build Tools manually from:"
+        Write-Info "https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+        return $false
+    }
+
+    Write-Info "This will install Microsoft Visual Studio Build Tools 2022 with C++ workload"
+    Write-Info "This may take 10-30 minutes depending on your system..."
+    Write-Host ""
+
+    try {
+        $installArgs = @(
+            "install",
+            "Microsoft.VisualStudio.2022.BuildTools",
+            "--override",
+            "'--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'"
+        )
+
+        Write-Info "Running: winget $($installArgs -join ' ')"
+        & winget install Microsoft.VisualStudio.2022.BuildTools --override '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Visual Studio Build Tools installed successfully"
+            Write-Warning "You may need to restart your terminal for changes to take effect"
+            return $true
+        } else {
+            Write-Warning "Installation returned exit code: $LASTEXITCODE"
+            Write-Info "Please check if VS Build Tools was installed correctly"
+            return $false
+        }
+    } catch {
+        Write-Error "Failed to install VS Build Tools: $_"
+        Write-Info "Please install manually from:"
+        Write-Info "https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+        return $false
+    }
+}
+
+# ============================================================================
 # Git Check
 # ============================================================================
 
@@ -375,9 +496,10 @@ function Main {
     Write-Host "║            Disco Installer for Windows              ║" -ForegroundColor Cyan
     Write-Host "╚══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
-    
+
     Check-System
     Check-Git
+    Check-VSBuildTools
     Check-Rust
     Get-InstallPath
     Install-Disco
