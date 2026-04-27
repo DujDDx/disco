@@ -202,7 +202,7 @@ function Check-VSBuildTools {
         }
     }
 
-    # Not found - prompt user for installation
+    # Not found - auto install (no interactive prompt for remote execution)
     Write-Warning "Visual Studio Build Tools not found"
     Write-Warning "Rust MSVC toolchain requires Visual Studio Build Tools with C++ workload"
     Write-Host ""
@@ -211,20 +211,9 @@ function Check-VSBuildTools {
     Write-Host "  "'link --help' for more information (wrong link command)'" -ForegroundColor Gray
     Write-Host ""
 
-    $response = Read-Host "Do you want to install Visual Studio Build Tools? (Y/n)"
-
-    if ($response -eq "" -or $response -eq "Y" -or $response -eq "y") {
-        Install-VSBuildTools
-        return $true
-    } else {
-        Write-Warning "Skipping VS Build Tools installation"
-        Write-Warning "Build may fail if you don't have MSVC linker"
-        Write-Host ""
-        Write-Host "You can install it manually later with:" -ForegroundColor Yellow
-        Write-Host "  winget install Microsoft.VisualStudio.2022.BuildTools --override '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'" -ForegroundColor Cyan
-        Write-Host ""
-        return $false
-    }
+    Write-Info "Auto-installing Visual Studio Build Tools..."
+    Install-VSBuildTools
+    return $true
 }
 
 function Install-VSBuildTools {
