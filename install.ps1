@@ -208,7 +208,7 @@ function Check-VSBuildTools {
     Write-Host ""
     Write-Host "Without VS Build Tools, you may encounter errors like:" -ForegroundColor Yellow
     Write-Host "  'link.exe failed with exit code: 1'" -ForegroundColor Gray
-    Write-Host "  "'link --help' for more information (wrong link command)'" -ForegroundColor Gray
+    Write-Host "  'link --help' for more information (wrong link command)" -ForegroundColor Gray
     Write-Host ""
 
     Write-Info "Auto-installing Visual Studio Build Tools..."
