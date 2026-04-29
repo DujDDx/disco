@@ -683,7 +683,8 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
     use std::io;
 
     // Menu items: (number_key, label_key, desc_key)
-    let menu_items: Vec<(&str, &str, &str)> = vec![
+    // These are translation keys, not hardcoded strings
+    let menu_keys: Vec<(&str, &str, &str)> = vec![
         ("1", "menu-disk-management", "menu-desc-disk"),
         ("2", "menu-scan-files", "menu-desc-scan"),
         ("3", "menu-search-files", "menu-desc-search"),
@@ -744,7 +745,7 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
             )?;
 
             // Menu items with numbers and arrows
-            for (i, (key, label_key, desc_key)) in menu_items.iter().enumerate() {
+            for (i, (key, label_key, desc_key)) in menu_keys.iter().enumerate() {
                 let arrow = if i == selected { "  ▶ " } else { "    " };
                 let key_color = if i == selected { CColor::Green } else { CColor::Yellow };
                 let label_color = if i == selected { CColor::White } else { CColor::Grey };
@@ -807,14 +808,14 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
                         }
                     }
                     KeyCode::Down => {
-                        if selected < menu_items.len() - 1 {
+                        if selected < menu_keys.len() - 1 {
                             selected += 1;
                             needs_redraw = true;
                         }
                     }
                     KeyCode::Enter => {
                         // Check if exit
-                        if selected == menu_items.len() - 1 {
+                        if selected == menu_keys.len() - 1 {
                             break;
                         }
                         // Execute selected action
@@ -837,8 +838,8 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
                     }
                     KeyCode::Char(c) => {
                         // Quick select by number or 'q'
-                        if let Some(idx) = menu_items.iter().position(|(k, _, _)| *k == c.to_string()) {
-                            if idx == menu_items.len() - 1 {
+                        if let Some(idx) = menu_keys.iter().position(|(k, _, _)| *k == c.to_string()) {
+                            if idx == menu_keys.len() - 1 {
                                 break; // Exit
                             }
                             // Execute selected action
