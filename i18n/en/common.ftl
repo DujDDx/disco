@@ -61,3 +61,7 @@ no-valid-paths = No valid paths to store.
 # Hash verification status
 hash-enabled = Hash verification enabled
 hash-disabled = Hash verification disabled
+
+# Language switching
+lang-switched = Language switched to {$lang}
+language-switched = Language switched successfully

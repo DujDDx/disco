@@ -88,7 +88,3 @@ prompt-enter-solid-layer = 输入SolidLayer深度（默认0不分割）：
 prompt-enter-destination = 输入目标目录 [默认: ./]：
 prompt-enter-disk-id = 输入硬盘ID：
 prompt-select-files = 输入要检索的文件编号（如 1,3,5）或 'all'：
-
-# 哈希状态
-hash-enabled = 哈希校验已开启
-hash-disabled = 哈希校验已关闭

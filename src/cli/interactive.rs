@@ -165,6 +165,28 @@ fn dispatch(ctx: &AppContext, line: &str) -> Result<bool> {
             run_menu_mode(ctx)?;
             Ok(false)
         }
+        "lang" | "language" => {
+            // Toggle language between en and zh-CN
+            let current = crate::i18n::current_language();
+            let new_lang = if current == "en" { "zh-CN" } else { "en" };
+
+            crate::i18n::set_language(new_lang).map_err(|e| crate::DiscoError::ConfigError(e))?;
+
+            // Save to config
+            let config = ctx.config();
+            let db = ctx.db();
+            config.set_value("language", new_lang, db).map_err(|e| crate::DiscoError::ConfigError(e.to_string()))?;
+
+            println!();
+            println!("  {} -> {}",
+                if current == "en" { "English" } else { "简体中文" },
+                if new_lang == "en" { "English" } else { "简体中文" }
+            );
+            println!("  {}", crate::i18n::t("language-switched"));
+            println!();
+
+            Ok(false)
+        }
         "status" => {
             handle_status(ctx)?;
             Ok(false)
@@ -668,6 +690,36 @@ fn handle_repair(ctx: &AppContext) -> Result<()> {
     }
 
     print_success(&t!("repair-complete"));
+    Ok(())
+}
+
+/// Handle language command - toggle between supported languages
+fn handle_language(ctx: &AppContext) -> Result<()> {
+    let current_lang = crate::i18n::current_language();
+    let current_index = crate::i18n::SUPPORTED_LANGUAGES
+        .iter()
+        .position(|(code, _)| *code == current_lang)
+        .unwrap_or(0);
+
+    // Cycle to next language
+    let next_index = (current_index + 1) % crate::i18n::SUPPORTED_LANGUAGES.len();
+    let (new_code, new_name) = crate::i18n::SUPPORTED_LANGUAGES[next_index];
+
+    // Set the new language
+    crate::i18n::set_language(new_code).map_err(|e| crate::DiscoError::ConfigError(e))?;
+
+    // Save to config database
+    let config = ctx.config();
+    let db = ctx.db();
+    config
+        .set_value("language", new_code, db)
+        .map_err(|e| crate::DiscoError::ConfigError(e.to_string()))?;
+
+    // Show confirmation
+    println!();
+    print_success(&crate::t!("lang-switched", "lang" => new_name.to_string()));
+    println!();
+
     Ok(())
 }
 

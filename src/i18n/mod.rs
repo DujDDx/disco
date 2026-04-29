@@ -72,8 +72,14 @@ fn create_bundle(lang: &str) -> Result<FluentBundle<FluentResource>, String> {
     let mut bundle = FluentBundle::new(vec![lang_id]);
 
     let ftl_files = loader::load_ftl_files(lang);
+    
+    #[cfg(debug_assertions)]
+    eprintln!("[DEBUG] create_bundle: lang={}, loaded {} files", lang, ftl_files.len());
 
     for (name, content) in ftl_files {
+        #[cfg(debug_assertions)]
+        eprintln!("[DEBUG] Processing FTL file: {} ({} bytes)", name, content.len());
+        
         let resource = FluentResource::try_new(content)
             .map_err(|(_, errors)| {
                 let error_msgs: Vec<String> = errors.iter().map(|e| format!("{:?}", e)).collect();
@@ -117,24 +123,49 @@ pub fn detect_system_lang() -> String {
 
 /// Translate a key to the current language
 pub fn t(key: &str) -> String {
+    #[cfg(debug_assertions)]
+    eprintln!("[DEBUG] t() called with key: {}, current_lang: {}", key, current_language());
+    
     let lang = current_language();
 
     match create_bundle(&lang) {
         Ok(bundle) => {
+            #[cfg(debug_assertions)]
+            eprintln!("[DEBUG] Bundle created successfully, looking for key: {}", key);
+            
             let message = match bundle.get_message(key) {
-                Some(msg) => msg,
-                None => return key.to_string(),
+                Some(msg) => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[DEBUG] Message found for key: {}", key);
+                    msg
+                }
+                None => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[DEBUG] Message NOT found for key: {}", key);
+                    return key.to_string();
+                }
             };
 
             let value = match message.value() {
                 Some(v) => v,
-                None => return key.to_string(),
+                None => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[DEBUG] Message has no value for key: {}", key);
+                    return key.to_string();
+                }
             };
 
             let mut errors = vec![];
-            bundle.format_pattern(value, None, &mut errors).to_string()
+            let result = bundle.format_pattern(value, None, &mut errors).to_string();
+            #[cfg(debug_assertions)]
+            eprintln!("[DEBUG] Translated '{}' -> '{}'", key, result);
+            result
         }
-        Err(_) => key.to_string(),
+        Err(e) => {
+            #[cfg(debug_assertions)]
+            eprintln!("[DEBUG] Failed to create bundle: {}", e);
+            key.to_string()
+        }
     }
 }
 
