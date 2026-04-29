@@ -5,10 +5,14 @@ use crate::Result;
 use crate::t;
 use crate::cli::context::AppContext;
 use crate::cli::display::{format_size, print_success, print_warning, print_info, print_header, print_separator};
+use crate::cli::interruptible::{run_interruptible_search, DEFAULT_SEARCH_LIMIT};
 use crate::storage::platform::DiskDetector;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::{self, Write};
+
+/// Items per page for display
+const ITEMS_PER_PAGE: usize = 20;
 
 /// Retrieve files from the disk pool
 #[derive(Args, Debug)]
@@ -48,11 +52,17 @@ pub fn handle_retrieve_with_ctx(ctx: &AppContext, keyword: String) -> Result<()>
     let entry_repo = ctx.entry_repo();
     let disk_repo = ctx.disk_repo();
 
-    // Search for files
+    // Search for files with interruptible search - use large limits
     println!();
     println!("Searching for: {}", keyword.cyan());
 
-    let entries = entry_repo.search_by_name(&keyword, 100)?;
+    // Use large limits to remove the 50/50 restriction
+    let search_result = run_interruptible_search(&entry_repo, &keyword, DEFAULT_SEARCH_LIMIT, DEFAULT_SEARCH_LIMIT)?;
+
+    // Extract results
+    let entries = search_result.entries;
+    let folder_matches = search_result.folder_matches;
+    let was_interrupted = search_result.was_interrupted;
 
     // Separate files and directories
     let files: Vec<_> = entries
@@ -65,126 +75,36 @@ pub fn handle_retrieve_with_ctx(ctx: &AppContext, keyword: String) -> Result<()>
         .filter(|e| e.entry_type == crate::domain::entry::EntryType::Dir)
         .collect();
 
-    // Also search for folder names (aggregated across disks)
-    let folder_matches = entry_repo.search_folder_names(&keyword, 50)?;
-
     if files.is_empty() && dirs.is_empty() && folder_matches.is_empty() {
         println!();
-        print_warning("No files or folders found matching the keyword.");
+        if was_interrupted {
+            print_warning("Search was interrupted before any results were found.");
+        } else {
+            print_warning("No files or folders found matching the keyword.");
+        }
         return Ok(());
     }
 
     // Get mount points for status checking
     let mount_points = detector.list_mount_points()?;
 
-    // Display results
+    // Show interruption message if applicable
     println!();
-    print_header("Search Results:");
-    println!();
-
-    let mut result_index = 0usize;
-
-    // Show aggregated folder matches first
-    if !folder_matches.is_empty() {
-        println!("{}", "  Folders (aggregated across disks):".yellow().bold());
-        println!();
-
-        for folder in &folder_matches {
-            let split_indicator = if folder.is_split() {
-                format!(" {} ", "[拆分/Split]".magenta())
-            } else {
-                String::new()
-            };
-
-            println!(
-                "  {} {} {}{}[{} files, {}]",
-                format!("[{}]", result_index + 1).bright_black(),
-                "📁".to_string(),
-                folder.folder_name.white().bold(),
-                split_indicator,
-                folder.file_count.to_string().cyan(),
-                format_size(folder.total_size).green()
-            );
-
-            // Show which disks this folder is on
-            let disk_names: Vec<&str> = folder.disk_names.split(',').collect();
-            if disk_names.len() > 1 {
-                println!("      {} {}", "→".bright_black(), folder.disk_names.yellow());
-            } else {
-                println!("      {} {}", "→".bright_black(), folder.disk_names.bright_black());
-            }
-
-            result_index += 1;
-        }
-        println!();
+    if was_interrupted {
+        println!(
+            "  [!] Search interrupted - showing {} results found so far",
+            files.len() + folder_matches.len()
+        );
     }
 
-    // Show individual files
-    if !files.is_empty() {
-        println!("{}", "  Files:".cyan().bold());
-        println!();
-
-        for entry in &files {
-            // Check if disk is mounted
-            let disk = disk_repo.get_disk_by_id(&entry.disk_id);
-            let mounted = match disk {
-                Ok(ref d) => {
-                    let mut found = false;
-                    for mount in &mount_points {
-                        if let Ok(identity) = detector.detect_identity(mount) {
-                            if d.identity.matches(&identity) {
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    found
-                }
-                Err(_) => false,
-            };
-
-            let status = if mounted {
-                "●".green()
-            } else {
-                "○".red()
-            };
-
-            println!(
-                "  {} {} {} {} [{}] {}",
-                format!("[{}]", result_index + 1).bright_black(),
-                status,
-                "📄".to_string(),
-                entry.file_name.white(),
-                format_size(entry.size).cyan(),
-                entry.disk_name.bright_black()
-            );
-
-            result_index += 1;
-        }
-    }
-
-    println!();
-    println!("  Total: {} folders, {} files", folder_matches.len(), files.len());
-    println!();
-
-    // Ask which items to retrieve
-    print!("Enter numbers to retrieve (e.g., 1,3,5) or 'all': ");
-    io::stdout().flush().ok();
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).ok();
-    let input = input.trim();
-
-    let total_items = folder_matches.len() + files.len();
-    let indices: Vec<usize> = if input.to_lowercase() == "all" {
-        (0..total_items).collect()
-    } else {
-        input
-            .split(',')
-            .filter_map(|s| s.trim().parse::<usize>().ok())
-            .filter(|&i| i > 0 && i <= total_items)
-            .map(|i| i - 1)
-            .collect()
-    };
+    // Run interactive paginator
+    let indices = run_interactive_paginator(
+        &folder_matches,
+        &files,
+        &disk_repo,
+        &detector,
+        &mount_points,
+    )?;
 
     if indices.is_empty() {
         print_info("No items selected.");
@@ -223,7 +143,7 @@ pub fn handle_retrieve_with_ctx(ctx: &AppContext, keyword: String) -> Result<()>
         if idx < folder_count {
             // This is a folder - retrieve all files in it
             let folder = &folder_matches[idx];
-            println!("{}", format!("📁 Retrieving folder: {}", folder.folder_name).cyan().bold());
+            println!("[DIR] Retrieving folder: {}", folder.folder_name);
 
             // Get all entries for this folder
             let folder_entries = entry_repo.search_by_path_prefix(&folder.folder_name, 10000)?;
@@ -250,7 +170,7 @@ pub fn handle_retrieve_with_ctx(ctx: &AppContext, keyword: String) -> Result<()>
                         total_size += size;
                     }
                     Err(e) => {
-                        println!("    {} Failed: {}", "✗".red(), e);
+                        println!("    [X] Failed: {}", e);
                         failed_count += 1;
                     }
                 }
@@ -266,7 +186,7 @@ pub fn handle_retrieve_with_ctx(ctx: &AppContext, keyword: String) -> Result<()>
                         total_size += size;
                     }
                     Err(e) => {
-                        println!("  {} Failed: {}", entry.file_name.red(), e);
+                        println!("  [X] Failed: {} - {}", entry.file_name, e);
                         failed_count += 1;
                     }
                 }
@@ -345,7 +265,7 @@ fn retrieve_file(
         dest_path
     };
 
-    println!("  {} Copying {}...", "→".bright_black(), entry.file_name.cyan());
+    println!("  [*] Copying {}...", entry.file_name);
 
     // Copy with progress
     copy_file_with_progress(&source_path, &dest_path)
@@ -371,7 +291,7 @@ fn copy_file_with_progress(source: &std::path::Path, dest: &std::path::Path) -> 
     // Create progress bar
     let pb = ProgressBar::new(source_size);
     let style = ProgressStyle::default_bar()
-        .template("    {spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec})")
+        .template("    [{elapsed_precise}] [{bar:30}] {bytes}/{total_bytes} ({bytes_per_sec})")
         .expect("Valid template")
         .progress_chars("#>-");
     pb.set_style(style);
@@ -392,12 +312,10 @@ fn copy_file_with_progress(source: &std::path::Path, dest: &std::path::Path) -> 
     writer.flush()?;
     pb.finish_and_clear();
 
-    println!("    {} Saved to {}", "✓".green(), dest.display().to_string().green());
+    println!("    [OK] Saved to {}", dest.display());
 
     Ok(copied)
-<<<<<<< Updated upstream
 }
-=======
 }
 
 /// Active region for display
@@ -859,4 +777,3 @@ fn run_interactive_paginator(
 
     res
 }
->>>>>>> Stashed changes

@@ -470,6 +470,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unic-langid",
+ "unicode-width 0.2.0",
  "walkdir",
 ]
 
