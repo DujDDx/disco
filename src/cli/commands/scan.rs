@@ -38,7 +38,7 @@ pub fn handle_scan(cmd: ScanCmd) -> Result<()> {
     handle_scan_with_ctx(&ctx, cmd.all, cmd.disk, cmd.hash, cmd.full)
 }
 
-pub fn handle_scan_with_ctx(ctx: &AppContext, all: bool, disk: Option<String>, hash: bool, full: bool) -> Result<()> {
+pub fn handle_scan_with_ctx(ctx: &AppContext, all: bool, disk: Option<String>, hash: bool, _full: bool) -> Result<()> {
     let detector = AppContext::disk_detector();
     let disk_repo = ctx.disk_repo();
     let entry_repo = ctx.entry_repo();
@@ -46,8 +46,10 @@ pub fn handle_scan_with_ctx(ctx: &AppContext, all: bool, disk: Option<String>, h
     // Determine scan target
     let target = if all || disk.is_none() {
         ScanTarget::All
+    } else if let Some(disk_id) = disk {
+        ScanTarget::Disk(disk_id)
     } else {
-        ScanTarget::Disk(disk.clone().unwrap())
+        ScanTarget::All
     };
 
     // Get disks to scan

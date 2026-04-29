@@ -933,9 +933,9 @@ fn execute_menu_action(ctx: &AppContext, index: usize) -> Result<()> {
             print_header("存储文件 Store Files");
             let hash_enabled = is_hash_enabled(ctx);
             if hash_enabled {
-                println!("  {} 哈希校验已开启", "✓".green());
+                println!("  {} {}", "✓".green(), t!("hash-enabled"));
             } else {
-                println!("  {} 哈希校验已关闭", "○".yellow());
+                println!("  {} {}", "○".yellow(), t!("hash-disabled"));
             }
             println!();
             print!("{} ", "输入文件路径（多个用逗号分隔）Enter paths (comma separated):".cyan());

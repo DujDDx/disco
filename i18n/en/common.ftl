@@ -57,3 +57,7 @@ no-files-found = No files found.
 no-folders-found = No folders found.
 no-items-selected = No items selected.
 no-valid-paths = No valid paths to store.
+
+# Hash verification status
+hash-enabled = Hash verification enabled
+hash-disabled = Hash verification disabled

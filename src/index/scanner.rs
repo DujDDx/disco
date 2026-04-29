@@ -174,10 +174,10 @@ pub fn full_scan(
 
     for entry in WalkDir::new(mount_point).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        let relative = path.strip_prefix(mount_point)
-            .expect("Path should be under mount point")
-            .to_string_lossy()
-            .to_string();
+        let relative = match path.strip_prefix(mount_point) {
+            Ok(r) => r.to_string_lossy().to_string(),
+            Err(_) => continue, // Skip paths not under mount point
+        };
 
         if relative.is_empty() {
             continue;
@@ -273,10 +273,10 @@ pub fn scan_path(
     // Scan the target path
     for entry in WalkDir::new(target_path).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        let relative = path.strip_prefix(mount_point)
-            .expect("Path should be under mount point")
-            .to_string_lossy()
-            .to_string();
+        let relative = match path.strip_prefix(mount_point) {
+            Ok(r) => r.to_string_lossy().to_string(),
+            Err(_) => continue, // Skip paths not under mount point
+        };
 
         if relative.is_empty() {
             continue;

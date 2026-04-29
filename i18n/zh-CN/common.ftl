@@ -57,3 +57,7 @@ no-files-found = 没有找到文件。
 no-folders-found = 没有找到文件夹。
 no-items-selected = 没有选择任何项目。
 no-valid-paths = 没有有效的存储路径。
+
+# 哈希校验状态
+hash-enabled = 哈希校验已开启
+hash-disabled = 哈希校验已关闭
