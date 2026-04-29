@@ -10,6 +10,9 @@ use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::{self, Write};
 
+/// Items per page for display
+const ITEMS_PER_PAGE: usize = 20;
+
 /// Retrieve files from the disk pool
 #[derive(Args, Debug)]
 pub struct RetrieveCmd {
@@ -395,9 +398,6 @@ fn copy_file_with_progress(source: &std::path::Path, dest: &std::path::Path) -> 
     println!("    {} Saved to {}", "✓".green(), dest.display().to_string().green());
 
     Ok(copied)
-<<<<<<< Updated upstream
-}
-=======
 }
 
 /// Active region for display
@@ -859,4 +859,3 @@ fn run_interactive_paginator(
 
     res
 }
->>>>>>> Stashed changes
