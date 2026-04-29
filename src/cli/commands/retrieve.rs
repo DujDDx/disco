@@ -316,7 +316,6 @@ fn copy_file_with_progress(source: &std::path::Path, dest: &std::path::Path) -> 
 
     Ok(copied)
 }
-}
 
 /// Active region for display
 #[derive(Debug, Clone, Copy, PartialEq)]
