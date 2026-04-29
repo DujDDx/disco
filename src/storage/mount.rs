@@ -60,7 +60,8 @@ impl<'a> MountChecker<'a> {
                 );
 
                 // Keep the best match (highest confidence)
-                if best_match.is_none() || match_result.confidence() > best_match.as_ref().unwrap().1.confidence() {
+                let current_best_confidence = best_match.as_ref().map(|(_, r)| r.confidence()).unwrap_or(0.0);
+                if best_match.is_none() || match_result.confidence() > current_best_confidence {
                     best_match = Some((mount, match_result));
                 }
             }
@@ -104,7 +105,13 @@ impl<'a> MountChecker<'a> {
                 let match_result = disk.identity.matches_with_tolerance(identity);
 
                 if match_result.is_match() {
-                    if best_match.is_none() || match_result.confidence() > best_match.as_ref().unwrap().1.confidence() {
+                let current_best_confidence = best_match
+                    .as_ref()
+                    .map(|(_, r)| r.confidence())
+                    .unwrap_or(0.0);
+                    if best_match.is_none()
+                        || match_result.confidence() > current_best_confidence
+                    {
                         best_match = Some((mount.clone(), match_result));
                     }
                 }
@@ -136,9 +143,9 @@ impl<'a> MountChecker<'a> {
                     let mut candidates = Vec::new();
                     for (mount, identity) in &mount_identities {
                         if let Some(label) = &disk.identity.volume_label {
-                            if identity.volume_label.is_some() {
+                            if let Some(identity_label) = &identity.volume_label {
                                 let l1 = label.to_lowercase();
-                                let l2 = identity.volume_label.as_ref().unwrap().to_lowercase();
+                                let l2 = identity_label.to_lowercase();
                                 if l1.contains(&l2) || l2.contains(&l1) {
                                     candidates.push((mount.clone(), identity.clone()));
                                 }

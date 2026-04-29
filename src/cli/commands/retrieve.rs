@@ -2,6 +2,7 @@
 
 use clap::Args;
 use crate::Result;
+use crate::t;
 use crate::cli::context::AppContext;
 use crate::cli::display::{format_size, print_success, print_warning, print_info, print_header, print_separator};
 use crate::cli::interruptible::{run_interruptible_search, DEFAULT_SEARCH_LIMIT};
@@ -315,6 +316,7 @@ fn copy_file_with_progress(source: &std::path::Path, dest: &std::path::Path) -> 
 
     Ok(copied)
 }
+}
 
 /// Active region for display
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -446,20 +448,32 @@ fn run_interactive_paginator(
                             Style::default().fg(Color::White)
                         };
 
-                        let split_indicator = if folder.is_split() {
-                            Span::styled(" [跨盘]", Style::default().fg(Color::Magenta))
+                        // Check if all disks for this folder are online
+                        let folder_disk_ids: Vec<crate::domain::disk::DiskId> = folder.disk_id_list()
+                            .into_iter()
+                            .map(|s| crate::domain::disk::DiskId::new(&s))
+                            .collect();
+                        let all_disks_online = folder_disk_ids.iter().all(|did| mounted_disks.contains(did));
+                        let status = if all_disks_online { "[在线]" } else { "[离线]" };
+                        let status_style = if all_disks_online {
+                            Style::default().fg(Color::Green)
                         } else {
-                            Span::raw("")
+                            Style::default().fg(Color::Red)
                         };
+
+                        // Get disk names for display
+                        let disk_names_display = folder.disk_names.clone();
 
                         ListItem::new(Line::from(vec![
                             Span::styled(selector, selector_style),
                             Span::styled(format!("[{:>3}] ", idx + 1), Style::default().fg(Color::Cyan)),
-                            Span::styled("[DIR] ", Style::default().fg(Color::Blue)),
+                            Span::styled(status, status_style),
+                            Span::raw(" "),
                             Span::styled(&folder.folder_name, name_style),
-                            split_indicator,
                             Span::raw("  "),
                             Span::styled(format!("({} 文件, {})", folder.file_count, format_size(folder.total_size)), Style::default().fg(Color::DarkGray)),
+                            Span::raw(" - "),
+                            Span::styled(disk_names_display, Style::default().fg(Color::DarkGray)),
                         ]))
                     })
                     .collect();
@@ -594,7 +608,7 @@ fn run_interactive_paginator(
                         // Cleanup and return empty
                         disable_raw_mode()?;
                         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-                        println!("已取消。");
+                        println!("{}", t!("action-cancelled"));
                         return Ok(Vec::new());
                     }
                     KeyCode::Tab => {
@@ -758,7 +772,7 @@ fn run_interactive_paginator(
 
     if !selected_indices.is_empty() {
         println!();
-        println!("已确认选择 {} 项。", selected_indices.len());
+        println!("{}", t!("action-complete"));
     }
 
     res

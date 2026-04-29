@@ -52,7 +52,7 @@ impl FsAdapter {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .map(|e| e.metadata().unwrap().len())
+            .filter_map(|e| e.metadata().ok().map(|m| m.len()))
             .sum();
         Ok(total)
     }

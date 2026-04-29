@@ -78,7 +78,9 @@ fn split_recursive(
             .to_string();
 
         // Check if this entry is marked as Solid
-        let is_solid = solid_checker.map_or(false, |checker| checker.is_solid(path, disk_id.unwrap()));
+        let is_solid = solid_checker.map_or(false, |checker| {
+            disk_id.map_or(false, |id| checker.is_solid(path, id))
+        });
 
         if path.is_file() {
             // Files are always atomic units at target depth

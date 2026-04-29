@@ -126,21 +126,23 @@ fn main() -> anyhow::Result<()> {
         return disco::cli::interactive::run_interactive().map_err(|e| anyhow::anyhow!("{}", e));
     }
 
-    // Dispatch to command handlers
-    match cli.command.unwrap() {
-        Commands::Disk(DiskCommands::Add(cmd)) => disco::cli::commands::disk::handle_add(cmd),
-        Commands::Disk(DiskCommands::List(cmd)) => disco::cli::commands::disk::handle_list(cmd),
-        Commands::Scan(cmd) => disco::cli::commands::scan::handle_scan(cmd),
-        Commands::Search(cmd) => disco::cli::commands::search::handle_search(cmd),
-        Commands::Get(cmd) => disco::cli::commands::get::handle_get(cmd),
-        Commands::Store(cmd) => disco::cli::commands::store::handle_store(cmd),
-        Commands::Retrieve(cmd) => disco::cli::commands::retrieve::handle_retrieve(cmd),
-        Commands::Solid(SolidCommands::Set(cmd)) => disco::cli::commands::solid::handle_set(cmd),
-        Commands::Solid(SolidCommands::Unset(cmd)) => disco::cli::commands::solid::handle_unset(cmd),
-        Commands::Visualize(cmd) => disco::cli::commands::visualize::handle_visualize(cmd),
-        Commands::Menu => disco::cli::interactive::run_menu_direct(),
-        Commands::Config(ConfigCmd::Lang(cmd)) => handle_config_lang(cmd),
-    }?;
+    // Dispatch to command handlers (command is guaranteed to be Some here)
+    if let Some(command) = cli.command {
+        match command {
+            Commands::Disk(DiskCommands::Add(cmd)) => disco::cli::commands::disk::handle_add(cmd),
+            Commands::Disk(DiskCommands::List(cmd)) => disco::cli::commands::disk::handle_list(cmd),
+            Commands::Scan(cmd) => disco::cli::commands::scan::handle_scan(cmd),
+            Commands::Search(cmd) => disco::cli::commands::search::handle_search(cmd),
+            Commands::Get(cmd) => disco::cli::commands::get::handle_get(cmd),
+            Commands::Store(cmd) => disco::cli::commands::store::handle_store(cmd),
+            Commands::Retrieve(cmd) => disco::cli::commands::retrieve::handle_retrieve(cmd),
+            Commands::Solid(SolidCommands::Set(cmd)) => disco::cli::commands::solid::handle_set(cmd),
+            Commands::Solid(SolidCommands::Unset(cmd)) => disco::cli::commands::solid::handle_unset(cmd),
+            Commands::Visualize(cmd) => disco::cli::commands::visualize::handle_visualize(cmd),
+            Commands::Menu => disco::cli::interactive::run_menu_direct(),
+            Commands::Config(ConfigCmd::Lang(cmd)) => handle_config_lang(cmd),
+        }?;
+    }
 
     Ok(())
 }

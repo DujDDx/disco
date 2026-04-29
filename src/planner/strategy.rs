@@ -84,9 +84,10 @@ impl DiskSelectionStrategy for BestFitStrategy {
                 target_relative_path,
             });
 
-            // Update remaining space
-            let current = remaining_space.get_mut(best_disk.disk_id.as_str()).unwrap();
-            *current -= unit_size;
+            // Update remaining space with safe subtraction
+            if let Some(current) = remaining_space.get_mut(best_disk.disk_id.as_str()) {
+                *current = current.saturating_sub(unit_size);
+            }
         }
 
         Ok(plan_items)

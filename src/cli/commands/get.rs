@@ -23,7 +23,7 @@ pub fn handle_get(cmd: GetCmd) -> Result<()> {
     handle_get_with_ctx(&ctx, cmd.entry_id, cmd.locate)
 }
 
-pub fn handle_get_with_ctx(ctx: &AppContext, entry_id: i64, locate: bool) -> Result<()> {
+pub fn handle_get_with_ctx(ctx: &AppContext, entry_id: i64, _locate: bool) -> Result<()> {
     let detector = AppContext::disk_detector();
     let entry_repo = ctx.entry_repo();
     let disk_repo = ctx.disk_repo();
