@@ -61,3 +61,7 @@ no-valid-paths = 没有有效的存储路径。
 # 哈希校验状态
 hash-enabled = 哈希校验已开启
 hash-disabled = 哈希校验已关闭
+
+# 语言切换
+lang-switched = 语言已切换为 {$lang}
+language-switched = 语言切换成功

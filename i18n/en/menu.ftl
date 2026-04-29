@@ -88,7 +88,3 @@ prompt-enter-solid-layer = Enter solid layer depth [0]:
 prompt-enter-destination = Enter destination directory [default: ./]:
 prompt-enter-disk-id = Enter disk ID:
 prompt-select-files = Enter file numbers to retrieve (e.g., 1,3,5) or 'all':
-
-# Hash status
-hash-enabled = Hash verification enabled
-hash-disabled = Hash verification disabled

@@ -87,6 +87,22 @@ fn get_embedded_files() -> HashMap<&'static str, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::{set_language, t, current_language};
+
+    #[test]
+    fn test_translation() {
+        // 测试英文
+        set_language("en").unwrap();
+        assert_eq!(current_language(), "en");
+        let text = t("menu-disk-management");
+        assert_eq!(text, "Disk Management", "English translation failed: got '{}'", text);
+
+        // 测试中文
+        set_language("zh-CN").unwrap();
+        assert_eq!(current_language(), "zh-CN");
+        let text = t("menu-disk-management");
+        assert_eq!(text, "磁盘管理", "Chinese translation failed: got '{}'", text);
+    }
 
     #[test]
     fn test_load_embedded() {
