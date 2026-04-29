@@ -2,6 +2,7 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::{ColoredString, Colorize};
+use unicode_width::UnicodeWidthStr;
 
 /// Create a progress bar for scanning
 pub fn create_scan_progress(total: u64) -> ProgressBar {
@@ -213,5 +214,58 @@ pub fn print_menu_item(key: &str, label: &str, selected: bool) {
         println!("  {} {} {}", "▶".green().bold(), format!("[{}]", key).green().bold(), label.white().bold());
     } else {
         println!("    {} {}", format!("[{}]", key).bright_black(), label.white());
+    }
+}
+
+/// Calculate the display width of a string (accounting for full-width characters like CJK and emoji)
+pub fn display_width(s: &str) -> usize {
+    UnicodeWidthStr::width(s)
+}
+
+/// Truncate a string to fit within a given display width
+/// Returns the truncated string with "..." appended if truncation occurred
+pub fn truncate_to_display_width(s: &str, max_width: usize) -> String {
+    let width = display_width(s);
+    if width <= max_width {
+        return s.to_string();
+    }
+
+    // Reserve 3 characters for "..."
+    let target_width = max_width.saturating_sub(3);
+    let mut result = String::new();
+    let mut current_width = 0;
+
+    for ch in s.chars() {
+        let ch_width = UnicodeWidthStr::width(ch.to_string().as_str());
+        if current_width + ch_width > target_width {
+            break;
+        }
+        result.push(ch);
+        current_width += ch_width;
+    }
+
+    result.push_str("...");
+    result
+}
+
+/// Pad a string to a given display width with spaces on the right
+/// If the string is wider than max_width, it will be truncated
+pub fn pad_to_display_width(s: &str, width: usize) -> String {
+    let current_width = display_width(s);
+    if current_width >= width {
+        truncate_to_display_width(s, width)
+    } else {
+        format!("{}{}", s, " ".repeat(width - current_width))
+    }
+}
+
+/// Pad a string to a given display width with spaces on the left (right-align)
+/// If the string is wider than max_width, it will be truncated
+pub fn pad_to_display_width_left(s: &str, width: usize) -> String {
+    let current_width = display_width(s);
+    if current_width >= width {
+        truncate_to_display_width(s, width)
+    } else {
+        format!("{}{}", " ".repeat(width - current_width), s)
     }
 }
