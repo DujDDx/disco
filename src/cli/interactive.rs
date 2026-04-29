@@ -759,10 +759,10 @@ fn run_menu_mode(ctx: &AppContext) -> Result<()> {
                     ResetColor,
                     Print(" "),
                     SetForegroundColor(label_color),
-                    Print(t!(label_key)),
+                    Print(crate::i18n::t(label_key)),
                     ResetColor,
                     SetForegroundColor(desc_color),
-                    Print(format!(" - {}", t!(desc_key))),
+                    Print(format!(" - {}", crate::i18n::t(desc_key))),
                     ResetColor,
                     Print("\r\n")
                 )?;
